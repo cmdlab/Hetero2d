@@ -34,11 +34,7 @@ setup(
 
     packages=find_packages(),
     python_requires='>=3.6, <4',
-    install_requires=['ase==3.17.0','numpy==1.16.0','FireWorks==1.9.1',
-        'pymatgen==2018.11.30','custodian==2018.8.10','atomate==0.8.4',
-        'sphinx==3.0.1', 'sphinx-rtd-theme==0.5.2',
-        'monty==1.0.3','sphinx_autodoc_annotation==1.0.post1',
-        'MPInterfaces-Latest==2.0.3','pybtex==0.24.0','Jinja2==2.8.0'],  
+    install_requires=[],  
     project_urls={'Bug Reports': 'https://github.com/cmdlab/Hetero2d/issues',
         'Source': 'https://github.com/cmdlab/Hetero2d/',
     },

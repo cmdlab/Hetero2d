@@ -10,10 +10,11 @@ Atomate and FireWorks do not run on Windows OS. You need a unix-based OS (Mac or
 1. Download the repo from the green code icon or via github's commandline tool gh. 
 - ``gh repo clone cmdlab/Hetero2d`` (gh must be installed)
 - ``git clone https://github.com/cmdlab/Hetero2d.git``
-2. Install Hetero2d in a clean enviromnent using python=3.6
-- ``conda create --name Hetero2d python=3.6``
+2. Install Hetero2d in a clean enviromnent using python=3.6. I suggest using Anaconda3 to manange environments. 
+- ``conda create --name hetero2d python=3.6``
 3. Activate the Hetero2d environment and run the line below in the Hetero2d directory to install:
 - ``pip install -r requirements.txt``
+- ``python setup.py develop`` or ``python setup.py install`` to add Hetero2d to your python path.
 4. After installation, add Hetero2d to your python path by *.bashrc* file. Only necessary if python cannot find the package.
 - `export PYTHONPATH="$HOME/path_to_package/Hetero2d:$PYTHONPATH"`
 5. If this is your first time installing the package dependencies listed below, please ensure you have followed the respective setup instructions:
