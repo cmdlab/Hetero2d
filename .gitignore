@@ -1,0 +1,19 @@
+# python directory
+__pycache__/
+*/__pycache__/
+
+# docs build directory
+sphinx/_build/
+
+# Jupyter notebook directory
+.ipynb_checkpoints/
+examples/.ipynb_checkpoints/
+
+# PyPy Wheel Directory
+dist/
+build/
+hetero2d.egg-info/
+
+# sphinx doc
+.idea/
+.DS_Store

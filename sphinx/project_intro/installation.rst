@@ -1,12 +1,11 @@
-# Hetero2d
-The Hetero2d package leverages well known computational tools: pymatgen, MPInterfaces, atomate, fireworks, and custodian to perform high-throughput *ab-initio* calculations. Hetero2d is tailored to addressing scientific questions regarding the stability of 2D-substrate hetero-structured materials using an all-in-one workflow approach to model the hetero-structures formed by arbitrary 2D materials and substrates. The workflow creates, computes, analyzes and stores all relevant simulation parameters and results in a queryable MongoDB database that can be accessed through our API.
+=====================
+Installing Hetero2d
+=====================
 
-Hetero2d provides automated routines for the generation of low-lattice mismatched hetero-structures for arbitrary 2D materials and substrate surfaces, the creation of van der Waals corrected density-functional theory (DFT) input files, the submission and monitoring of simulations on computing resources, the post-processing of the key parameters to compute (a) the interface interaction energy of 2D-substrate hetero-structures, (b) the identification of substrate-induced changes in interfacial structure, and (c) charge doping of the 2D material.
-
-### IMPORTANT NOTE
+IMPORTANT NOTE
+=====================
 Atomate and FireWorks do not run on Windows OS. You need a unix-based OS (Mac or Linux) in order for these packages to run. As such, all setup instructions are given for Unix systems. 
 
-## Installing Hetero2d
 1. Download the repo from the green code icon or via github's commandline tool gh. 
 - ``gh repo clone cmdlab/Hetero2d`` (gh must be installed)
 - ``git clone https://github.com/cmdlab/Hetero2d.git``
@@ -36,5 +35,4 @@ The Hetero2d package dependancies have a lot of documentation to look over. I wi
   - mp_api: the_key_obtained_from_materialsproject
   - potentials: path_to_vasp_potcar_files
 
-## Package Description
-The 2D-substrate hetero-structure workflow takes a given 2D material, 3D phase (bulk) of the 2D material, and a substrate, relaxes the structures using vdW-corrected DFT and creates hetero-structures subject to user constraints. The workflow analyzes and stores energetic stability information of various 2D hetero-structured materials to predict the feasibility of a substrate stabilizing a meta-stable 2D material.
+
