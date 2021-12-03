@@ -3,9 +3,9 @@
 # Distributed under the terms of the GNU License.
 
 """
-These modules are adopted from the MPInterfaces modules to be compatible with the
-hetero_interfaces workflow and atomate. Additionally, these functions have been augmented
-to return additional data to store in the mongo database.
+These modules are used to create the heterostructure configurations given a 2d and substrate slab.
+The code is adopted from the MPInterfaces to ensure the code is compatible with the FireWorks and 
+atomate architecture, to fix minor bugs in the original code, and return interface matching criteria.
 """
 
 from six.moves import range
@@ -33,6 +33,12 @@ __date__ = "June 5, 2020"
 def rotate_to_acute(structure):
     """
     If the angle for a 2D structure is obtuse, reflect the b vector to -b to make it acute.
+    
+    Args:
+        structure (Structure): structure to rotate.
+    
+    Returns:
+        rotated structure
     """
     # the new coordinate system basis vectors
     a_prime = np.array(
@@ -66,9 +72,10 @@ def rotate_to_acute(structure):
 
 
 def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
-                              nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4):
+                              nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, 
+                              separation=3.4):
     """
-    Given the 2 slab structures and the alignment paramters, return
+    Given the 2 slab structures and the alignment parameters, return
     slab structures with lattices that are aligned with respect to each
     other.
 
@@ -77,11 +84,13 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
         slab_sub (Structure): Substrate slab structure object.
         max_area (float): The maximum area you want to search for
             a matching lattice. Defaults to 200 sqr. Angstroms.
-        max_mismatch (float):  The mismatch between the 2D lattice
-            and the substrate's lattice in both the a and b
-            directios. Defaults to 0.01.
-        max_angle_diff (float): The angle deviation along the z direction.
-            Defaults to 1.
+        max_mismatch (float):  The maximum mismatch between the a 
+            and b lattice vectors of the aligned 2D and substrate 
+            lattice vectors. Defaults to 0.01, multiply by 100 to 
+            obtain percent.
+        max_angle_diff (float): The angle deviation between the a and
+            b lattice vectors between the old lattice vectors and the
+            new lattice vectors. Defaults to 1 degree.
         r1r2_tol (float): Allowed area approximation tolerance for the two
             lattices. Defaults to 0.02.
         nlayers_substrate (int): number of substrate layers. Defaults
@@ -322,10 +331,11 @@ def remove_duplicates(uv_list, tm_list):
 
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
     """
-    For the given lattice matched 2D material and substrate structures,
-    this functions computes all unique sites in the interface layers
-    and subsequently generates all possible unique 2d/substrate
-    interfaces and writes the corresponding poscar files.
+    For the given lattice matched 2D material and substrate structures, this functions computes all
+    unique (Wyckoff) sites of the mat2d and substrate. The unique sites are iteratively matched 
+    between the mat2d and substrate stacking the unique sites on top of each other separated by the
+    separation distance parameter. This subsequently generates all possible 2d/substrate heterostructure
+    configurations stacked over high symmetry points. All unique structures are returned.
 
     Args:
         mat2d (Structure): Lattice and symmetry-matched 2D material 
@@ -335,7 +345,7 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
         nlayers_substrate (int): number of substrate layers. Defaults 
             to 2 layers.
         nlayers_2d (int): number of 2d material layers. Defaults to 
-            2 layers.
+            3 layers.
         separation (float): separation between the substrate and the 2d
             material. Defaults to 3.4 angstroms.
     
@@ -455,23 +465,25 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
             the substrate slab.
         struct_sub: The substrate slab structure which the 2D
             structure will be placed on top of.
-        max_mismatch (float): The allowed misfit strain between the film
-            and substrate. Maximum value is 1. Defaults to 0.01.
-        max_area (int): The maximum area searched to find a matching
-            lattice within the specified r1r2_tol for the given max_mismatch
-            value. Default 200 sq Angstroms.
-        max_angle_diff (int): The angle deviation along the z direction.
-            Defaults to 1.
+        max_mismatch (float): The allowed misfit strain between struct_2d
+            and struct_sub. Defaults to 0.01, multiply by 100 to obtain 
+            percent strain.
+        max_area (float): The maximum surface area that the hetero-structure
+            is allowed to have.
+        max_angle_diff (float): The maximum allowed deviation 
+	        between the new superlattice and the old lattice a and b
+	        vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
+	        Default value 1 degree.
         r1r2_tol (float): The tolerance in ratio of the r1 over r2
             ratio. Default 0.02.
         nlayers_2d (int): The number of layers of the 2D materials
-            which you want to to relax during the relaxation. Defaults
-            to 3 layer.
+            which you want to relax during the relaxation. Defaults
+            to 3 layers.
         nlayers_sub (int): The number of layers of the substrate surface
-            which you want to to relax during the relaxation. Defaults
-            to 2 layer.
-        separation (float): Separation distance between the substrate
-            and film. Default 3.4 Angstroms.
+            which you want to relax during the relaxation. Defaults
+            to 2 layers.
+        separation (float): Separation distance between struct_sub
+            and struct_2d. Default 3.4 Angstroms.
 
     Returns:
         Unique hetero_structures list, last entry contains lattice alignment
