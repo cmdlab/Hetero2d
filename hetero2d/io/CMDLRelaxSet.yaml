@@ -1,6 +1,6 @@
-# Default VASP settings for calculations in the Materials Project.
-# Reasonably robust. Use this if you intend to combine your calculated data
-# with Materials Project data for analysis.
+# Default VASP settings for calculations in the 2DMSD.
+# Reasonably robust and based off Materials Project
+# VASP settings
 INCAR:
   ALGO: FAST
   ENCUT: 520
