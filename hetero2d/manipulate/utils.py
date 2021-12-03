@@ -3,7 +3,8 @@
 # Distributed under the terms of the GNU License.
 
 """
-Useful utilities to view, analyze, and change structures.
+Useful utilities to view, analyze, and change structures. Some functions are not intended for 
+the user. 
 """
 
 from copy import deepcopy
@@ -38,7 +39,9 @@ def get_mongo_client(db_file, db_type=None):
       db_file (str): The db.json file location.
       db_type (str): String describing the type of connection you are
         trying to make. Options - ATLAS or URI. For a private MongoDB
-        server ignore this tag. 
+        server, ignore this tag. 
+    Returns: 
+      client, database_name
     """
     db = loadfn(db_file)
     host_name = db['host']
@@ -70,7 +73,7 @@ def average_z_sep(structure, iface_idx, initial=None):
     layers in a structure. If provided an initial
     structure the change in the post-adsorbed z 
     separation distance is calculated. Typically used
-    for 2D-substrate heterostructures.
+    for 2D-substrate heterostructures in AnalysisToDb.
 
     Args:
         structure (Structure): the final structure to
@@ -81,7 +84,7 @@ def average_z_sep(structure, iface_idx, initial=None):
     Optional:
         initial (Structure): the initial structure prior
             to DFT optimization.
-    Return:
+    Returns:
         z-separation, delta_2d_z
     '''
     # get the 2d sub separation dist (bot & top atoms) 
@@ -138,7 +141,7 @@ def center_slab(structure):
 
 def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     '''
-    Given a superlattice structures and original unit cell structures
+    Given superlattice structures and original unit cell structures
     return the number of formula units of the aligned 2d and substrate
     based on the original substrate and 2d component structures.
     
@@ -152,7 +155,7 @@ def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
         aligned_2d (Structure): Superlattice for the 2d material aligned
             to the substrate structure.
 
-    Return:
+    Returns:
         fu_2d, fu_sub
     '''
     # ensure the structures are structure objects
@@ -197,13 +200,13 @@ def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=
     all of its atoms will also be relaxed.
 
     Args:
-        interface: input structure file
-        n_layers: number of layers to be relaxed
-        top: whether n_layers from top are be relaxed
-        bottom: whether n_layers from bottom are be relaxed
-        lattice_dir: whether to search the a,b, or c axis for
+        interface (Structure): input structure file
+        n_layers (int): number of layers to be relaxed
+        top (bool): whether n_layers from top are be relaxed
+        bottom (bool): whether n_layers from bottom are be relaxed
+        lattice_dir (str): whether to search the a, b, or c axis for
             layers
-    Return:
+    Returns:
         sd_flags
     """
     sd_flags = np.zeros_like(interface.frac_coords)
@@ -250,12 +253,12 @@ def round_decimals_down(number: float, decimals: int = 2):
 def slab_from_struct(structure, hkl=None):
     """                                                                         
     Reads a pymatgen structure object and returns a Slab object. Useful for reading 
-    in 2d/substrate structure for atomate wf's.              
+    in 2d/substrate structures from atomate wf's.              
     
     Args:                                                                       
       hkl (list): miller index of the slab in the input file.                       
       structure (Structure): structure file in any format supported by pymatgen                                        
-    Return:                                                                    
+    Returns:                                                                    
       Slab structure object                                                            
     """
     if hkl is None:
@@ -278,12 +281,12 @@ def struct_from_str(string):
     """
     Given a string serialized pymatgen structure object, return a structure object.
     Fixes a conversion error when j_sanitizing structure objects not in dictionary
-    format.
+    format. Probably due to my ignorance.
 
     Args:
       string (str): A string representation of a structure object.
 
-    Return:
+    Returns:
       pymatgen structure object
     """
     string = string.split('\n')
@@ -313,12 +316,13 @@ def struct_from_str(string):
 def tag_iface(structure, nlayers_2d, nlayers_sub=2):
     """
     Find the atom indices in a heterostructure by specifying how many 
-    layers of the 2D material are contained within the 2D layer and returns
-    a dictionary of atom ids for each layer of the 2D material and nlayers_sub 
-    of the substrate surface.
+    layers there are for the 2D material. Returns a dictionary of atom
+    ids for each layer of the 2D material and nlayers_sub of the
+    substrate surface.
 
     Args:
         structure (Structure): The hetero_interface structure.
+            Should be an unrelaxed structure.
         nlayers_2d (int): The number of layers contained
             within the 2d material.
         nalyers_sub (int): The number of layers of the substrate
@@ -364,8 +368,9 @@ def tag_iface(structure, nlayers_2d, nlayers_sub=2):
 
 def show_struct_ase(structure):
     """
-    Creates a pop up structure model for a pymatgen structure object using ase view.
-    For use in jupyter notebooks.
+    Creates a pop up structure model for a pymatgen structure object using ase's
+    viewer. Created for use in jupyter notebooks and might not work over remote
+    access.
 
     Args:
       structure (Structure): Structure to show.
@@ -622,6 +627,8 @@ def iface_layer_locator(structure, cutoff, iface_elements):
         cutoff (float): the layer separation cutoff distance.
         iface_elements (list): A list of element species
             that compose the top and bottom iface layers.
+    Returns:
+        LayerSolver object, top_layer specie, bottom_layer specie
     """
     sample = LayerSolver(structure, cutoff=cutoff)
     flag = True
@@ -646,7 +653,7 @@ def iface_layer_locator(structure, cutoff, iface_elements):
 
 def atomic_distance(structure, dist=2):
     """
-    Given a structure and a inter_atomic separation distance all sites which have a
+    Given a structure and an interatomic separation distance all sites which have a
     spacing less than dist will be printed out.
 
     Args:
