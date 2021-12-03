@@ -34,10 +34,17 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
-def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterotransformation_params, slab_params, user_additions, tags={}, bin_2d=VASP_CMD, bin_3d=VASP_CMD, dipole=None, uis=None, uis_2d=None, vis_2d=None, uis_3d2d=None, vis_3d2d=None, uis_bulk=None, vis_bulk=None, uis_trans=None, vis_trans=None, uis_iface=None, vis_iface=None):
+def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
+				     heterotransformation_params, slab_params,
+				     user_additions, tags={}, bin_2d=VASP_CMD,
+				     bin_3d=VASP_CMD, dipole=None, uis=None,
+				     uis_2d=None, vis_2d=None, uis_3d2d=None, 
+				     vis_3d2d=None, uis_bulk=None, vis_bulk=None,
+				     uis_trans=None, vis_trans=None, uis_iface=None,
+				     vis_iface=None):
     """
-    Relax reference structures to determine energetic parameteres related
-    to the formation of 2D films adsorbed onto substrates. Heterinterfaces 
+    Relax reference structures to determine energetic parameters related
+    to the formation of 2D films adsorbed onto substrates. Heterointerfaces 
     are created from the relaxed 2D and substrate slabs which generate a 
     symmetry matched, low lattice mismatch between the 2D material and 
     substrate slab. The user should be familiar with the behaviour of 
@@ -45,38 +52,39 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
     hetero2d.manipulate.heterotransmuter import hetero_interfaces). Default 
     relaxation set CMDLInterfaceSet. Specify a complete vasp input 
     set or update the vis set using the uis_i tag to change vasp behaviour.
-    It is also possible to use the general uis to updated all vis.
+    It is also possible to use the general uis to update all vis.
     
     Args:
         struct_2d (Structure): The primitive unit cell of the 2D structure
-            to adsorb onto the substrate. Supply tags['2d']={ref_db_id:entry}
-            if structure has never been relaxed. Additionally provided UID_opt2d
-            if it has.
-        struct_sub (Structure): The substrate to adsorb the 2D material.
+            to adsorb onto the substrate slab.
+        struct_sub (Structure): The substrate (bulk phase or substrate slab)
+            to adsorb the 2D material.
         struct_3d2d (Structure): The bulk reference phase for the 2D 
             material.
-        heterotransformation_params (list): A list transformation 
-            parameters to create heterointerface configurations.
-            Dictionary keys:
-            * max_mismatch (int): Maximum percentage which the lattice will
-            be allowed to be strained. Values range from 0-100.
-            * max_area (int): The size of the supercell area you want to 
-            search for potential matching lattices. Typical values 
-            100-800.
-            * max_angle_diff (int): The angle deviation in the c direciton. 
-            Typical values around 1 percent.
-            * r1r2_tol (int): The tolerance in mismatch between the new 
-            lattice vectors. Typically 0.1 or 0.01.
-            * separation (int): The separation distance between the 
-            substrate and 2D material.
-            * nlayers_sub (int): Set the selective dynamics tags for the top
-            of the substrate. This sets how many layers of the surface 
-            is allowed to relax. By default the bottom is frozen.
-            * nlayers_2d (int): Set the selective dynamics tags for the 2D 
-            material. This sets how many layers are allowed to relax. 
-            NOTE: n_layers also is used to generate_all_configs.
+        heterotransformation_params (list): A list of dictionaries where 
+            the keys represent the arguments of the hetero_interfaces function.
+            Dictionary keys [{hetero_interfaces function args: value}]:
+            * max_mismatch (float): Maximum allowed lattice strain applied 
+	    to the struct_2d. Values range from 0-1. Multiply by 100 to 
+	    obtain strain in percent.
+            * max_area (int): The maximum surface area of the supercell to 
+            search for potential lattice matches between struct_2d and 
+	    struct_sub. Typical values 30-200 Angstroms.
+            * max_angle_diff (float): The maximum allowed deviation 
+	    between the new superlattice and the old lattice a and b
+	    vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
+	    Default value 1 degree.
+            * r1r2_tol (float): The maximum allowed deviation between the 
+	    scaled surface area of the 2d and substrate. Typical values
+	    range from 0.01 to 0.1. 
+            * separation (float): The separation distance between the 
+            struct_sub and struct_2d.
+            * nlayers_sub (int): Set the selective dynamics tags for the
+	    top n layers for struct_sub to True. By default the bottom is frozen.
+            * nlayers_2d (int): Set the selective dynamics tags for struct_2d
+	    to True. NOTE: n_layers also is used to generate_all_configs.
         slab_params (dict): Same parameter format as the TransmuterFW to 
-            create a slab.
+            create a substrate slab.
             transmute (list): A list of transformations to be performed on
             each structure. See valid TransmuterFW inputs.
             transmute_params (list): A list of dictionaries defining the 
@@ -86,15 +94,17 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
             'max_normal_search':True,'min_vacuum_size':18,
             'primitive':False,'min_slab_size':12,'center_slab':True}]}
         user_additions (dict): A specification to control the workflow. 
-            See firetasks.heteriface_tasks._update_spec for detailed list 
+            See firetasks.heteroiface_tasks._update_spec for a detailed list 
             of parameters. 
+	bin_2d (str): VASP run command for the VASP version compiled to restrict
+            vacuum spacing in z direction from shrinking artifically.
+	bin_3d (str): VASP run command for the VASP version compiled normally.
     
     Optional:
-        dipole (bool): If True dipole corrections will be used for all slab 
+        dipole (bool): If True, dipole corrections will be used for all slab 
             calculations. Defaults to True.
-        tags (dict): A dictionary which list the tags for the whole, 2d, 
-            3d2d, bulk, transmuter, and iface tags which you want to add to 
-            each step in the calculation.
+        tags (dict): A dictionary applying tags to - general(all), 2d, 
+            3d2d, bulk, transmuter, and iface fireworks.
         uis (dict): A dictionary of general user incar settings you wish to 
             apply to every simulation. Defaults to None.
         uis_I (dict): A dictionary of INCAR settings to override the 
@@ -105,7 +115,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
             CMDLInterfaceSet.
 
     Returns:
-        Heterostrcture workflow
+        Heterostructure workflow
     
     """
     ### Vasp INPUT SET ###
