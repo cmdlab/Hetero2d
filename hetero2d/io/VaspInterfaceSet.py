@@ -67,7 +67,7 @@ class CMDLInterfaceSet(CMDLRelaxSet):
         auto_dipole (bool): Whether to set dipole corrections. Defaults to
             False.
         set_mix (bool): Whether to set the mixing parameters. Defaults to
-            True.
+            False.
         sort_structure (bool): Whether to sort the structure. Defaults to
             False.
         user_incar_settings (dict): A way to override the default settings
