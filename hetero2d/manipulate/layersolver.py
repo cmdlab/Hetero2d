@@ -23,12 +23,12 @@ __date__ = "June 5, 2020"
 
 def LayerSolver(structure, cutoff=0.5):
     """
-    Groups sites in a structure into layers according to z-coordinate. Returning layer specific data such as the
+    Group sites in a structure into layers according to z-coordinate. Return layer specific data such as the
     z-coordinate of layer, a list of sites, the species of elements in the layer and the atom indices of that layer.
 
     Args:
         structure (Structure): Input structure to be analyzed.
-        cutoff (float): The inter-layer separation distance that the algorithm search for.
+        cutoff (float): The inter-layer separation distance that the algorithm searches for.
 
     Returns:
         Layers dictionary returning layer specific information: each layer information is encoded with dictionary key
