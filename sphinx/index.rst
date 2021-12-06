@@ -4,7 +4,7 @@
    contain the root `toctree` directive.
 
 Welcome to Hetero2d's documentation!
-===================================
+=====================================
 
 .. toctree::
    :maxdepth: 1
@@ -14,8 +14,9 @@ Welcome to Hetero2d's documentation!
    Documentation<hetero2d/modules>
 
 Indices and tables
-==================
+===================
 
 * :ref:`genindex`
 * :ref:`modindex`
 * :ref:`search`
+
