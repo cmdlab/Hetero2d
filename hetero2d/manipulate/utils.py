@@ -40,6 +40,7 @@ def get_mongo_client(db_file, db_type=None):
       db_type (str): String describing the type of connection you are
         trying to make. Options - ATLAS or URI. For a private MongoDB
         server, ignore this tag. 
+        
     Returns: 
       client, database_name
     """
@@ -81,9 +82,11 @@ def average_z_sep(structure, iface_idx, initial=None):
         iface_idx (dict): Dictionary containing a list
             of atom indices for each layer. Computed 
             using tag_iface.
-    Optional:
+            
+    Other Parameters:
         initial (Structure): the initial structure prior
             to DFT optimization.
+            
     Returns:
         z-separation, delta_2d_z
     '''
@@ -129,9 +132,10 @@ def center_slab(structure):
     fractional height.
 
     Args:
-        structure (Structure): Structure to center
+        structure (Structure): Structure to center.
+        
     Returns:
-        Centered Structure object.
+        Centered Structure object
     """
     
     center = np.average([s._fcoords[2] for s in structure.sites])
@@ -200,12 +204,13 @@ def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=
     all of its atoms will also be relaxed.
 
     Args:
-        interface (Structure): input structure file
-        n_layers (int): number of layers to be relaxed
-        top (bool): whether n_layers from top are be relaxed
-        bottom (bool): whether n_layers from bottom are be relaxed
+        interface (Structure): input structure file.
+        n_layers (int): number of layers to be relaxed.
+        top (bool): whether n_layers from top are be relaxed.
+        bottom (bool): whether n_layers from bottom are be relaxed.
         lattice_dir (str): whether to search the a, b, or c axis for
-            layers
+            layers.
+            
     Returns:
         sd_flags
     """
@@ -257,7 +262,8 @@ def slab_from_struct(structure, hkl=None):
     
     Args:                                                                       
       hkl (list): miller index of the slab in the input file.                       
-      structure (Structure): structure file in any format supported by pymatgen                                        
+      structure (Structure): structure file in any format supported by pymatgen.
+      
     Returns:                                                                    
       Slab structure object                                                            
     """
@@ -327,6 +333,7 @@ def tag_iface(structure, nlayers_2d, nlayers_sub=2):
             within the 2d material.
         nalyers_sub (int): The number of layers of the substrate
             surface to include in the interface tags.
+            
     Returns:
         layer_indices
     """
@@ -407,7 +414,8 @@ class nn_site_indices(CrystalNN):
             to True.
         duplicated (bool): Remove duplicated sites and return only the
             unique site_indices for the structure. Defaults to True.
-    Return:
+            
+    Returns:
         site_data (dict): A dictionary containing the atom id
         which was searched around and the corresponding list
         of NN atom ids of the cation/anions.
@@ -505,7 +513,7 @@ class nn_site_indices(CrystalNN):
         cell. Triggered by image = False.
 
         Args:
-            data (dict): the cNN.all_nninfo data type
+            data (dict): the cNN.all_nninfo data type.
         """
 
         unique_nn = {}
@@ -526,9 +534,8 @@ class nn_site_indices(CrystalNN):
         Return only the unique site indices from the all_nninfo
         cNN returned for each site. Truggered by duplicates=True.
 
-
         Args:
-            data (dict): the cNN.all_nninfo data type
+            data (dict): the cNN.all_nninfo data type.
         """
 
         unique_nn = {}
@@ -550,11 +557,11 @@ class nn_site_indices(CrystalNN):
         """
         Return the get_nn_data attribute from CrystalNN with or
         without image data, with options to remove duplicated
-        site_indices.
+        site_indices. Example: [{'site':'PeriodicSite',
+        'image':(int,int,int), 'weight':float, 'site_index':int}, ..]
 
         Returns:
-            nn_data: [{'site':'PeriodicSite','image':(int,int,int),
-                'weight':float, 'site_index':int}, ...]
+            nn_data (dict)
         """
 
         nn_data = {}  # the NN data dict
@@ -599,7 +606,7 @@ class nn_site_indices(CrystalNN):
 
     def site_elements(self):
         """
-        Returns the nearest neighbor elements that correspond to the site indices
+        Returns the nearest neighbor elements that correspond to the site indices.
         """
 
         nn_elms = {}  # nn elements to return
@@ -627,6 +634,7 @@ def iface_layer_locator(structure, cutoff, iface_elements):
         cutoff (float): the layer separation cutoff distance.
         iface_elements (list): A list of element species
             that compose the top and bottom iface layers.
+            
     Returns:
         LayerSolver object, top_layer specie, bottom_layer specie
     """
