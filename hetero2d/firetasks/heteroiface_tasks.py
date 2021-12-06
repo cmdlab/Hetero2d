@@ -3,8 +3,9 @@
 # Distributed under the terms of the GNU License.
 
 """
-These modules are helper functions and firetasks used to simulate the thermodynamic
-stability of 2D thin films adsorbed on a substrate surface.
+These modules are helper functions for the workflow, fireworks, and firetasks to simulate 
+the thermodynamic stability and electronic properties of 2D thin films adsorbed on a substrate surface.
+Most functions here are not intented to be used outside of specific fireworks.
 """
 
 from __future__ import division, print_function, unicode_literals, absolute_import
@@ -31,6 +32,43 @@ __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
+
+
+def find(pattern, path):
+    """
+    Finds a file on a given search path that matches the
+    pattern.
+
+    Args:
+        pattern (str): String to match on.
+        path (str): File path to search over.
+
+    Return:
+        a list of files matching the criteria
+    """
+    result = []
+    for root, dirs, files in os.walk(path):
+        for name in files:
+            if fnmatch.fnmatch(name, pattern):
+                result.append(name)
+    return result
+
+
+def get_FWjson():
+    """
+    Helper function which reads the FW.json file in the
+    local directory and returns the FW.json file.
+    """
+    fw_file = find('FW.json*', '.')[0]
+
+    if fw_file == 'FW.json.gz':
+        with gzip.GzipFile('FW.json.gz', 'r') as p:
+            fw_json_file = json.loads(p.read().decode('utf-8'))
+    elif fw_file == 'FW.json':
+        with open('FW.json', 'rb') as p:
+            fw_json_file = json.load(p)
+
+    return fw_json_file
 
 
 # Helper Functions
@@ -92,7 +130,7 @@ def _update_spec(additional_spec):
         Adsorption_Energy (bool): To perform analysis of the adsorption
             formation energy of the 2D/substrate slab. Defaults to True.
 
-    Return:
+    Returns:
         spec dict
     """
     # copy data b/c we delete entries
@@ -134,43 +172,6 @@ def _update_spec(additional_spec):
     return default_spec
 
 
-def find(pattern, path):
-    """
-    Finds a file on a given search path that matches the
-    pattern.
-
-    Args:
-        pattern (str): String to match on.
-        path (str): File path to search over.
-
-    Return:
-        a list of files matching the criteria
-    """
-    result = []
-    for root, dirs, files in os.walk(path):
-        for name in files:
-            if fnmatch.fnmatch(name, pattern):
-                result.append(name)
-    return result
-
-
-def get_FWjson():
-    """
-    Helper function which reads the FW.json file in the
-    local directory and returns the FW.json file.
-    """
-    fw_file = find('FW.json*', '.')[0]
-
-    if fw_file == 'FW.json.gz':
-        with gzip.GzipFile('FW.json.gz', 'r') as p:
-            fw_json_file = json.loads(p.read().decode('utf-8'))
-    elif fw_file == 'FW.json':
-        with open('FW.json', 'rb') as p:
-            fw_json_file = json.load(p)
-
-    return fw_json_file
-
-
 @explicit_serialize
 class TransferSlabTask(FiretaskBase):
     """
@@ -181,7 +182,7 @@ class TransferSlabTask(FiretaskBase):
         "label" (str): The name of the structure in the 
             additional_spec dict - struct_sub.
             
-    Return: 
+    Returns: 
         FWAction updating the spec
     """
     required_params = ['label']
@@ -203,18 +204,20 @@ class TransferSlabTask(FiretaskBase):
 class CreateHeterostructureTask(FiretaskBase):
     """
     Applies provided transformations to the input 2D structure and 
-    substrate slab and writes the VASP input for the simulation. Reads 
-    structure from POSCAR if no structure provided. 
+    substrate slab and writes the VASP input for the calculation. Reads 
+    structure from previous the directory if no structure is provided. 
 
     Updates the Q_Adapter settings for the hetero_interface optimization. Updates
-    spec file to include to analysis_info, the previous job info, enable
+    spec file to include to analysis_info, the previous job info, and enables
     duplicate checking.
     
     Args:
-        heterotransformation_params (dict): dictionary containing the input to control the hetero2d.manipulate.hetero_transmuter modules.
-            Example: h_params={'transformations':['hetero_interfaces'], 'transformation_params':[{hetero_inface input}]}
-        transformations (list): list of transformations to apply to the structure as defined in the
-            modules in hetero2d.manipulate module.
+        heterotransformation_params (dict): dictionary containing the input to
+            control the hetero2d.manipulate.hetero_transmuter modules. Example:
+            h_params={'transformations':['hetero_interfaces'], 'transformation_params':
+            [{hetero_inface input}]}
+        transformations (list): list of transformations to apply to the structure as 
+            defined in the modules in hetero2d.manipulate module.
         transformation_params (list): list of dicts where each dict specifies
             the input parameters to instantiate the transformation class
             in the transformations list. The transformations input parameters should
