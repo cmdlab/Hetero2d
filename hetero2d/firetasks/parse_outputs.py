@@ -49,7 +49,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=N
             the database file.
 
     Returns:
-        Analyzed structure, number of sites, and energy.
+        Analyzed structure, number of sites, and energy
     """
     dumpfn(fw_spec, 'fw_spec.json')
 
