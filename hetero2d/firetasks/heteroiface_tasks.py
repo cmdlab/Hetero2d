@@ -43,7 +43,7 @@ def find(pattern, path):
         pattern (str): String to match on.
         path (str): File path to search over.
 
-    Return:
+    Returns:
         a list of files matching the criteria
     """
     result = []
@@ -108,21 +108,24 @@ def _update_spec(additional_spec):
         analysis_info (dict): Dictionary that contains previous
             job information used for the analysis later.
         wf_name (str): An appropriate and unique name for 
-            the workflow. This is the base name for all WF
+            the workflow. This is the base name for all WFs
             choose wisely. Default to:
             HeteroInterfaces-{substrate-orient}:{2D.comp}-on-{sub.comp}.
-        wall_time_hetero (str): WallTime for the heterostructure job.
-            Must be entered in "HR:MIN:SEC" format. Defaults to 10 hrs.
-        max_nodes (int): Set a max number of nodes allowed for
-            running the hetero_structures created in the wf. Defaults
-            to 7 nodes.
-        ntasks (int): The number of cpu-cores/processors per
-            node. Used to set the appropriate number of nodes
-            for the hetero_structures. Defaults to 24 cores.
-        kpar_iface (int): Set the value of KPar for the
-            hetero_structures. Assumes a prior knowledge of
-            the total number of k-points in the IBZ. Defaults 
-            to 1. Currently not functioning.
+        wall_time_hetero (str): WallTime for the heterostructure jobs.
+            Must be entered in "HR:MIN:SEC" format. Defaults to 48 hrs.
+        sub_nodes (int): Set the number of nodes to use for optimation
+            of the substrate slab in the wf. Defaults to 1.
+        iface_nodes (int): Set the number of nodes to use for optimation
+            of the substrate slab in the wf. Default set to 1.
+        ntasks (int): The total number of cpu-cores/processors used for 
+            the calculation. Can use ntasks_per_node to set # of cpu cores
+            to use per node. Used to set the appropriate number of cores 
+            for the hetero_structure configurations. Defaults to ntasks 
+            in my_qadpater.yaml.
+        ntasks_per_node (int): The number of cpu-cores/processors per
+            node. Used to set the appropriate number of cores per node
+            for the hetero_structure configurations. Defaults to 
+            ntasks_per_node set in my_qadpater.yaml.
         Formation_Energy (bool): To perform analysis of the formation
             energy of the 2D material. Defaults to True.
         Binding_Energy (bool): To perform analysis of the binding energy
