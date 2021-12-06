@@ -18,7 +18,7 @@ Examples
 To get started using Hetero2d, various tutorials and examples have been created using Jupyter Notebooks. These notebooks demonstrate the basic functionality of Hetero2d to enable users to quickly learn how to use the various modules within this package. These can be found under Hetero2d/examples.
 
 How to cite Hetero2d
-===================
+====================
 
 If you use Hetero2d in your research, please consider citing the following work:
 

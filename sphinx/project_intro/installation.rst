@@ -2,8 +2,7 @@
 Installing Hetero2d
 =====================
 
-IMPORTANT NOTE: 
-Atomate and FireWorks do not run on Windows OS. You need a unix-based OS (Mac or Linux) in order for these packages to run. As such, all setup instructions are given for Unix systems. 
+IMPORTANT NOTE: Atomate and FireWorks do not run on Windows OS. You need a unix-based OS (Mac or Linux) in order for these packages to run. As such, all setup instructions are given for Unix systems. 
 
 1. Download the repo from the green code icon or via github's commandline tool gh. 
   * ``gh repo clone cmdlab/Hetero2d`` (gh must be installed)
