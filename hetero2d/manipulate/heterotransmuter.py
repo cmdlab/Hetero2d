@@ -101,8 +101,7 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
             material. Defaults to 3.4 angstroms.
 
     Returns:
-        Aligned structures for substrate & mat2d as well as the
-            alignment_info between the 2 structures.
+        aligned_sub, aligned_2d, alignment_info  
     """
     # deep copy original input structures to match lats
     struct_2d = deepcopy(struct_2d)
@@ -306,29 +305,6 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
         return None, None, None
 
 
-def remove_duplicates(uv_list, tm_list):
-    """
-    Remove duplicates based on a, b, alpha matching.
-    """
-    new_uv_list = []
-    new_tm_list = []
-    for sup_lat_n1, tm_n1 in zip(uv_list, tm_list):
-        a1 = [np.linalg.norm(i[0]) for i in sup_lat_n1]
-        b1 = [np.linalg.norm(i[1]) for i in sup_lat_n1]
-        angles = [get_angle(i[0], i[1]) for i in sup_lat_n1]
-        n1_lattices = [(a, b, alpha) for a, b, alpha in zip(a1, b1, angles)]
-        for lat in n1_lattices:
-            zround = np.array(n1_lattices).round(1)
-            zlist = zround.tolist()
-            zstr = np.array([str(j) for j in zlist])
-            zu, zind = np.unique(zstr, return_index=True)
-            unq_sup_lat = [sup_lat_n1[i] for i in zind]
-            unq_tm = [tm_n1[i] for i in zind]
-        new_uv_list.append(unq_sup_lat)
-        new_tm_list.append(unq_tm)
-    return new_uv_list, new_tm_list
-
-
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
     """
     For the given lattice matched 2D material and substrate structures, this functions computes all
@@ -408,50 +384,6 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     return hetero_interfaces
 
 
-def iface_name(mat2d, substrate):
-    """
-    Helper function used to generate a unique interface name for a set of interfaces. The substrate's name
-    will always be the same but the 2d materials indices shit and these are changed from one configuration to
-    the next. 
-    """
-    # Gather Layer Data from LayerSolver
-    sub_data = LayerSolver(structure=substrate)
-    td_data = LayerSolver(structure=mat2d)
-
-    # number of 2d layers to get the bottom layer
-    numl_2d = td_data['num_layers']
-
-    # top layer of the substrate
-    top_layer = sub_data['Layer0']
-    # bottom layer of the mat2d
-    bottom_layer = td_data['Layer' + str(numl_2d - 1)]
-    
-    # Generate Substrate Name
-    wyc_s = np.array(top_layer['wyckoffs']) # get unique wyckoffs 
-    wyc_lyr_s, idx_s, multi_s = np.unique(wyc_s, return_index=True,
-                                          return_counts=True) # get unique layer info
-    
-    # pull the unique atom species strings 
-    s_s = [top_layer['sites'][idx].species_string
-           for idx in idx_s]
-
-    # create the substrates name
-    sub_name = ','.join([str(s) + '(' + str(w) + ')'
-                         for s, w in zip(s_s, wyc_lyr_s)])
-
-    # Generate Two-D Name
-    wyc_t = np.array(bottom_layer['wyckoffs'])
-    wyc_lyr_t, idx_t, multi_t = np.unique(wyc_t, return_index=True,
-                                          return_counts=True)
-    s_t = [bottom_layer['sites'][idx].species_string
-           for idx in idx_t]
-    td_name = ';'.join([str(s) + '(' + str(w) + ')'
-                        for s, w in zip(s_t, wyc_lyr_t)])
-
-    name = sub_name + td_name
-    return name
-
-
 def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                       nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4):
     """
@@ -487,7 +419,7 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
 
     Returns:
         Unique hetero_structures list, last entry contains lattice alignment
-        information. Site properties contain iface name
+        information. Site properties contain iface name.
     """
     struct_2d = deepcopy(struct_2d)
     struct_sub = deepcopy(struct_sub)
@@ -542,3 +474,77 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
     # append the uv and angle mismatch to the interfaces
     hetero_interfaces.append(alignment_info)
     return hetero_interfaces
+
+
+def iface_name(mat2d, substrate):
+    """
+    Helper function used to generate a unique interface name for a set of interfaces. The substrate's name
+    will always be the same but the 2d materials indices shit and these are changed from one configuration to
+    the next. 
+    """
+    # Gather Layer Data from LayerSolver
+    sub_data = LayerSolver(structure=substrate)
+    td_data = LayerSolver(structure=mat2d)
+
+    # number of 2d layers to get the bottom layer
+    numl_2d = td_data['num_layers']
+
+    # top layer of the substrate
+    top_layer = sub_data['Layer0']
+    # bottom layer of the mat2d
+    bottom_layer = td_data['Layer' + str(numl_2d - 1)]
+    
+    # Generate Substrate Name
+    wyc_s = np.array(top_layer['wyckoffs']) # get unique wyckoffs 
+    wyc_lyr_s, idx_s, multi_s = np.unique(wyc_s, return_index=True,
+                                          return_counts=True) # get unique layer info
+    
+    # pull the unique atom species strings 
+    s_s = [top_layer['sites'][idx].species_string
+           for idx in idx_s]
+
+    # create the substrates name
+    sub_name = ','.join([str(s) + '(' + str(w) + ')'
+                         for s, w in zip(s_s, wyc_lyr_s)])
+
+    # Generate Two-D Name
+    wyc_t = np.array(bottom_layer['wyckoffs'])
+    wyc_lyr_t, idx_t, multi_t = np.unique(wyc_t, return_index=True,
+                                          return_counts=True)
+    s_t = [bottom_layer['sites'][idx].species_string
+           for idx in idx_t]
+    td_name = ';'.join([str(s) + '(' + str(w) + ')'
+                        for s, w in zip(s_t, wyc_lyr_t)])
+
+    name = sub_name + td_name
+    return name
+
+
+def remove_duplicates(uv_list, tm_list):
+    """
+    Remove duplicates based on a, b, alpha matching. Helper function.
+    
+    Args:
+    	uv_list (list): the a and b lattice vectors to transform.
+	tm_list (list): a list of transformation matrices.
+	
+    Returns: 
+    	new_uv_list, new_tm_list
+    """
+    new_uv_list = []
+    new_tm_list = []
+    for sup_lat_n1, tm_n1 in zip(uv_list, tm_list):
+        a1 = [np.linalg.norm(i[0]) for i in sup_lat_n1]
+        b1 = [np.linalg.norm(i[1]) for i in sup_lat_n1]
+        angles = [get_angle(i[0], i[1]) for i in sup_lat_n1]
+        n1_lattices = [(a, b, alpha) for a, b, alpha in zip(a1, b1, angles)]
+        for lat in n1_lattices:
+            zround = np.array(n1_lattices).round(1)
+            zlist = zround.tolist()
+            zstr = np.array([str(j) for j in zlist])
+            zu, zind = np.unique(zstr, return_index=True)
+            unq_sup_lat = [sup_lat_n1[i] for i in zind]
+            unq_tm = [tm_n1[i] for i in zind]
+        new_uv_list.append(unq_sup_lat)
+        new_tm_list.append(unq_tm)
+    return new_uv_list, new_tm_list
