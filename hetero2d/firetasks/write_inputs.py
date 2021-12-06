@@ -47,11 +47,14 @@ class WriteSlabStructureIOSet(FiretaskBase):
 
     Args:
         structure (Structure): input structure.
-        transformations (list): list of names of transformation classes as defined in the modules in pymatgen.transformations
+        transformations (list): list of names of transformation classes as defined 
+            in the modules in pymatgen.transformations
         vasp_input_set (VaspInputSet): VASP input set.
 
     Other Parameters:
-        transformation_params (list): list of dicts where each dict specifies the input parameters to instantiate the transformation class in the transformations list.
+        transformation_params (list): list of dicts where each dict specifies the 
+            input parameters to instantiate the transformation class in the 
+            transformations list.
         override_default_vasp_params (dict): additional user input settings.
         prev_calc_dir (str): path to previous calculation if using structure 
             from another calculation.
