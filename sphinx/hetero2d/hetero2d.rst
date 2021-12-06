@@ -11,7 +11,6 @@ Subpackages
    hetero2d.fireworks
    hetero2d.io
    hetero2d.manipulate
-   hetero2d.utility
    hetero2d.workflow
 
 Module contents
