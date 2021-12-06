@@ -34,10 +34,10 @@ logger = get_logger(__name__)
 
 def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=None, db_file=None):
     """
-    Insert a new doc for the 2d materials hetero2d database.
+    Insert a new doc for the 2d, 3d2d, bulk, substrate slab, 2d-subs generator, or 2d-subs 
+    configuration into the database.
 
     Args:
-        self: The local variables which are passed to the firetask.
         fw_spec (dict): A dictionary containing all the information
             linked to this firework.
         task_name (str): The name of the firework being analyzed.
@@ -48,7 +48,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=N
         db_file (str): a string representation for the location of
             the database file.
 
-    Return:
+    Returns:
         Analyzed structure, number of sites, and energy.
     """
     dumpfn(fw_spec, 'fw_spec.json')
