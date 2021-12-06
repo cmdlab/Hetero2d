@@ -62,37 +62,12 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
         struct_3d2d (Structure): The bulk reference phase for the 2D 
             material.
         heterotransformation_params (list): A list of dictionaries where 
-            the keys represent the arguments of the hetero_interfaces function.
-            Dictionary keys [{hetero_interfaces function args: value}]:
-            * max_mismatch (float): Maximum allowed lattice strain applied 
-	    to the struct_2d. Values range from 0-1. Multiply by 100 to 
-	    obtain strain in percent.
-            * max_area (int): The maximum surface area of the supercell to 
-            search for potential lattice matches between struct_2d and 
-	    struct_sub. Typical values 30-200 Angstroms.
-            * max_angle_diff (float): The maximum allowed deviation 
-	    between the new superlattice and the old lattice a and b
-	    vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
-	    Default value 1 degree.
-            * r1r2_tol (float): The maximum allowed deviation between the 
-	    scaled surface area of the 2d and substrate. Typical values
-	    range from 0.01 to 0.1. 
-            * separation (float): The separation distance between the 
-            struct_sub and struct_2d.
-            * nlayers_sub (int): Set the selective dynamics tags for the
-	    top n layers for struct_sub to True. By default the bottom is frozen.
-            * nlayers_2d (int): Set the selective dynamics tags for struct_2d
-	    to True. NOTE: n_layers also is used to generate_all_configs.
+            the keys represent the arguments of the hetero_interfaces function
+	    and the value is the argument excluding the structures. Dictionary
+	    keys [{hetero_interfaces function args: value}]. See hetero_interfaces
+	    module for args.
         slab_params (dict): Same parameter format as the TransmuterFW to 
-            create a substrate slab.
-            transmute (list): A list of transformations to be performed on
-            each structure. See valid TransmuterFW inputs.
-            transmute_params (list): A list of dictionaries defining the 
-            input parameters to transmute the structure. 
-            Example: {'transmute':['SlabTransformation'],'transmute_params':
-            [{'miller_index':[0,0,1],'lll_reduce':True, 
-            'max_normal_search':True,'min_vacuum_size':18,
-            'primitive':False,'min_slab_size':12,'center_slab':True}]}
+            create a substrate slab. 
         user_additions (dict): A specification to control the workflow. 
             See firetasks.heteroiface_tasks._update_spec for a detailed list 
             of parameters. 
@@ -100,10 +75,10 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
             vacuum spacing in z direction from shrinking artifically.
 	bin_3d (str): VASP run command for the VASP version compiled normally.
     
-    Optional:
+    Other Parameters:
         dipole (bool): If True, dipole corrections will be used for all slab 
             calculations. Defaults to True.
-        tags (dict): A dictionary applying tags to - general(all), 2d, 
+        tags (dict): A dictionary applying tags to - general (all), 2d, 
             3d2d, bulk, transmuter, and iface fireworks.
         uis (dict): A dictionary of general user incar settings you wish to 
             apply to every simulation. Defaults to None.
