@@ -4,7 +4,8 @@
 
 """
 This module defines tasks that support running vasp in various ways.
-Under active development for Hetero2d.
+Under active development for Hetero2d. Currently not in use as the default
+behaviour from atomate is sufficient. 
 """
 
 import os
