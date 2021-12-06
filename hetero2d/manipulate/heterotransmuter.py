@@ -397,26 +397,28 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
             the substrate slab.
         struct_sub: The substrate slab structure which the 2D
             structure will be placed on top of.
-        max_mismatch (float): The allowed misfit strain between struct_2d
-            and struct_sub. Defaults to 0.01, multiply by 100 to obtain 
+        max_mismatch (float): The maximum allowed lattice strain applied
+            to the struct_2d. Defaults to 0.01, multiply by 100 to obtain 
             percent strain.
-        max_area (float): The maximum surface area that the hetero-structure
-            is allowed to have.
+        max_area (float): The maximum surface area of the supercell to 
+            search for potential lattice matches between struct_2d and 
+	    struct_sub. Typical values 30-200 Angstroms.
         max_angle_diff (float): The maximum allowed deviation 
-	        between the new superlattice and the old lattice a and b
-	        vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
-	        Default value 1 degree.
-        r1r2_tol (float): The tolerance in ratio of the r1 over r2
-            ratio. Default 0.02.
+	    between the new superlattice and the old lattice a and b
+	    vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
+	    Default value 1 degree.
+        r1r2_tol (float): The maximum allowed deviation between the 
+	    scaled surface area of the 2d and substrate. Typical values
+	    range from 0.01 to 0.1. 
         nlayers_2d (int): The number of layers of the 2D materials
             which you want to relax during the relaxation. Defaults
             to 3 layers.
         nlayers_sub (int): The number of layers of the substrate surface
             which you want to relax during the relaxation. Defaults
-            to 2 layers.
+            to 2 layers with bottom layer frozen.
         separation (float): Separation distance between struct_sub
             and struct_2d. Default 3.4 Angstroms.
-
+	    
     Returns:
         Unique hetero_structures list, last entry contains lattice alignment
         information. Site properties contain iface name.
