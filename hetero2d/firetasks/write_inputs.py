@@ -67,7 +67,9 @@ class WriteSlabStructureIOSet(FiretaskBase):
     optional_params = ["prev_calc_dir", "transformation_params", "override_default_vasp_params"]
 
     def run_task(self, fw_spec):
-        """Your comments Here"""
+        """
+        Execute the transformations and write the input files for the calculation
+        """
         transformations = []
         transformation_params = self.get("transformation_params",
                                          [{} for i in range(len(self["transformations"]))])
@@ -106,7 +108,7 @@ class WriteSlabStructureIOSet(FiretaskBase):
         vis = vis_orig.__class__.from_dict(vis_dict)
         vis.write_input(".")
 
-        # debug data
+        # uncomment if you need to debug
         # dumpfn(transmuter.transformed_structures[-1], "transformations.json")
 
 
@@ -134,6 +136,10 @@ class WriteHeteroStructureIOSet(FiretaskBase):
                        "vasp_input_set"]
 
     def run_task(self, fw_spec):
+        '''
+        Write the selective dynamics tags for the 2d-substrate heterostructure
+        configuration and all calculation input file to the specified directory.
+        '''
         structure = self['structure']
 
         # set selective dynamics for the 2D sub slab iface 
