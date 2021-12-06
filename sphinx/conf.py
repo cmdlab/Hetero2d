@@ -10,7 +10,6 @@ sys.path.insert(0, os.path.abspath('../hetero2d'))
 sys.path.insert(0, os.path.abspath('../hetero2d/workflow'))
 sys.path.insert(0, os.path.abspath('../hetero2d/io'))
 sys.path.insert(0, os.path.abspath('../hetero2d/manipulate'))
-sys.path.insert(0, os.path.abspath('../hetero2d/utility'))
 sys.path.insert(0, os.path.abspath('../hetero2d/fireworks'))
 sys.path.insert(0, os.path.abspath('../hetero2d/firetasks'))
 # -- Project information -----------------------------------------------------
