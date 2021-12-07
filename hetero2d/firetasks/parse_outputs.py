@@ -188,18 +188,24 @@ class HeteroAnalysisToDb(FiretaskBase):
         wf_name (str): The name of the workflow that this analysis is part of.
 
     Other Parameters:
-        Adsorption_Energy (bool): If set this will perform adsorption energy
-            analysis for the run and send the results to the Adsorption_Energy
-            collection.
-        Binding_Energy (bool): If set the binding energy will be calculated 
-            and sent to the Binding Energy collection.
-        Formation_Energy (bool): If set the formation energy will be calculated
-            and sent to the Formation_Energy collection.
+        dos (bool): If True, the density of states parser is performed.
+        bader (bool): If True, bader analysis is performed for the current
+            directory.
+        cdd (bool): If True, the charge density difference is performed.
+        Adsorption_Energy (bool): If True, the adsorption formation energy
+            analysis is calculated for the run the results are stored with the
+            structure in the database under the Adsorption_Energy key.
+        Binding_Energy (bool): If True, the binding energy will be calculated 
+            and stored in the database under the Binding Energy key.
+        Formation_Energy (bool): If True, the formation energy will be calculated
+            and stored with structure in the database under the Formation_Energy
+            key.
         calc_dir (str): The calculation directory to parse.
-        calc_loc (str): The location to the directory to parse.
+        calc_loc (bool/str): The location to the directory to parse.
     """
     required_params = ["db_file", "wf_name", "task_label"]
-    optional_params = ["Adsorption_Energy", "Binding_Energy", "Formation_Energy", 'additional_fields']
+    optional_params = ["dos", "bader", "cdd", "Adsorption_Energy", "Binding_Energy", 
+            "Formation_Energy", "additional_fields"]
 
     def run_task(self, fw_spec):
         logger.info("Starting HeteroAnalysisToDb")
