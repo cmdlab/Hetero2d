@@ -22,7 +22,7 @@ How to cite Hetero2d
 
 If you use Hetero2d in your research, please consider citing the following work:
 
-  Tara M. Boland, Arunima K. Singh. Computational Synthesis of 2D Materials: A High-throughput Approach to Materials Design. 2021 arXiv.
+  Tara M. Boland, Arunima K. Singh. Computational Synthesis of 2D Materials: A High-throughput Approach to Materials Design (2021). arXiv:2112.03900.
 
 License
 =======
