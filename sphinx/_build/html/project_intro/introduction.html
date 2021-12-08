@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Introduction &mdash; Hetero2d 1.0.0 documentation</title><link rel="stylesheet" href="../_static/css/theme.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/pygments.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  <script id="documentation_options" data-url_root="../" src="../_static/documentation_options.js"></script>
+        <script src="../_static/jquery.js"></script>
+        <script src="../_static/underscore.js"></script>
+        <script src="../_static/doctools.js"></script>
+        <script src="../_static/language_data.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Installing Hetero2d" href="installation.html" />
+    <link rel="prev" title="Project Introduction" href="modules.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="../index.html" class="icon icon-home"> Hetero2d
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="reference internal" href="modules.html">Project Introduction</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Introduction</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#package-description">Package Description</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#examples">Examples</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#how-to-cite-hetero2d">How to cite Hetero2d</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#license">License</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#about-the-team">About the Team</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#copyright-policy">Copyright Policy</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="installation.html">Installing Hetero2d</a></li>
+<li class="toctree-l2"><a class="reference internal" href="team.html">Development Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="references.html">References</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../hetero2d/modules.html">Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Hetero2d</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home"></a> &raquo;</li>
+          <li><a href="modules.html">Project Introduction</a> &raquo;</li>
+      <li>Introduction</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/project_intro/introduction.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <div class="section" id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<p>The Hetero2d package leverages well known computational tools: pymatgen, MPInterfaces, atomate, fireworks, and custodian to perform high-throughput ab-initio calculations. Hetero2d is tailored to addressing scientific questions regarding the stability of 2D-substrate hetero-structured materials using an all-in-one workflow approach to model the hetero-structures formed by arbitrary 2D materials and substrates. The workflow creates, computes, analyzes and stores all relevant simulation parameters and results in a queryable MongoDB database that can be accessed through our API.</p>
+<div class="section" id="package-description">
+<h2>Package Description<a class="headerlink" href="#package-description" title="Permalink to this headline">¶</a></h2>
+<p>The 2D-substrate hetero-structure workflow takes a given 2D material, 3D phase (bulk) of the 2D material, and a substrate, relaxes the structures using vdW-corrected DFT and creates hetero-structures subject to user constraints. The workflow analyzes and stores energetic stability information of various 2D hetero-structured materials to predict the feasibility of a substrate stabilizing a meta-stable 2D material.</p>
+<p>Hetero2d provides automated routines for the generation of low-lattice mismatched hetero-structures for arbitrary 2D materials and substrate surfaces, the creation of van der Waals corrected density-functional theory (DFT) input files, the submission and monitoring of simulations on computing resources, the post-processing of the key parameters to compute (a) the interface interaction energy of 2D-substrate hetero-structures, (b) the identification of substrate-induced changes in interfacial structure, and (c) charge doping of the 2D material.</p>
+</div>
+<div class="section" id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Permalink to this headline">¶</a></h2>
+<p>To get started using Hetero2d, various tutorials and examples have been created using Jupyter Notebooks. These notebooks demonstrate the basic functionality of Hetero2d to enable users to quickly learn how to use the various modules within this package. These can be found under Hetero2d/examples.</p>
+</div>
+<div class="section" id="how-to-cite-hetero2d">
+<h2>How to cite Hetero2d<a class="headerlink" href="#how-to-cite-hetero2d" title="Permalink to this headline">¶</a></h2>
+<p>If you use Hetero2d in your research, please consider citing the following work:</p>
+<p><strong>add later</strong></p>
+</div>
+<div class="section" id="license">
+<h2>License<a class="headerlink" href="#license" title="Permalink to this headline">¶</a></h2>
+<p>Hetero2d is released under the GNU General Public Version 3 License. Copyright (C) 2007 Free Software Foundation, Inc. &lt;<a class="reference external" href="https://fsf.org/">https://fsf.org/</a>&gt;. The terms of the license can be found in the main directory in this software package under the LICENSE file.</p>
+</div>
+<div class="section" id="about-the-team">
+<h2>About the Team<a class="headerlink" href="#about-the-team" title="Permalink to this headline">¶</a></h2>
+<p>Arunima Singh (P.I.) of the Computational Materials Design Lab started Hetero2d in 2020, and is project lead.</p>
+<p>Currently, the main developer for this package is graduate student Tara M. Boland who has developed much of the existing Hetero2d package under the guidance of Arunima Singh.</p>
+<p>See more team details in the Development Team section.</p>
+</div>
+<div class="section" id="copyright-policy">
+<h2>Copyright Policy<a class="headerlink" href="#copyright-policy" title="Permalink to this headline">¶</a></h2>
+<p>Hetero2d uses a shared copyright model. Each contributor maintains
+copyright over their contributions to pymatgen. But, it is important
+to note that these contributions are typically only changes to the
+repositories. Thus, the Hetero2d source code, in its entirety is not
+the copyright of any single person or institution. Instead, it is the
+collective copyright of the entire Hetero2d Development Team. If
+individual contributors want to maintain a record of what
+changes/contributions they have specific copyright on, they should
+indicate their copyright in the commit message of the change, when
+they commit the change to one of the pymatgen repositories.</p>
+<p>With this in mind, the following banner should be used in any source
+code file to indicate the copyright and license terms:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="c1"># Copyright (c) CMD Lab Development Team.</span>
+<span class="c1"># Distributed under the terms of the GNU License.</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="modules.html" class="btn btn-neutral float-left" title="Project Introduction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="installation.html" class="btn btn-neutral float-right" title="Installing Hetero2d" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, Tara Maria Boland.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
