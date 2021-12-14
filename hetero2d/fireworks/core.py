@@ -10,6 +10,8 @@ substrates, and adsorbed 2D films on a substrate slab surface.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
+from monty.os.path import which
+
 from atomate.utils.utils import get_logger
 from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE 
 from atomate.common.firetasks.glue_tasks import PassCalcLocs
@@ -28,6 +30,19 @@ from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
 from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet
 
 from hetero2d.io.VaspInterfaceSet import CMDLInterfaceSet
+
+# tmp libs
+from atomate.vasp.fireworks.core import StaticFW
+from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet,\
+    WriteVaspNSCFFromPrev
+from atomate.vasp.powerups import add_namefile, add_additional_fields_to_taskdocs,\
+    get_fws_and_tasks, add_tags
+
+from pymatgen.command_line.bader_caller import bader_analysis_from_path
+from pymatgen.io.vasp import Vasprun, Outcar, Chgcar
+
+bader_exe_exists = which("bader") or which("bader.exe")
+
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -99,8 +114,7 @@ class HeteroOptimizeFW(Firework):
                               job_type=job_type, ediffg=ediffg, max_force_threshold=max_force_threshold,
                               auto_npar=auto_npar, wall_time=spec.get('wall_time', None),
                               half_kpts_first_relax=half_kpts_first_relax), PassCalcLocs(name=name),
-             HeteroAnalysisToDb(wf_name=spec['wf_name'],
-                                db_file=db_file,
+             HeteroAnalysisToDb(db_file=db_file,
                                 task_label=name,
                                 additional_fields={
                                     "tags": spec['tags']
@@ -191,8 +205,7 @@ class SubstrateSlabFW(Firework):
             raise ValueError("Must specify structure or previous calculation")
         t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, handler_group=handler))
         t.append(PassCalcLocs(name=fw_name))
-        t.append(HeteroAnalysisToDb(wf_name=spec['wf_name'],
-                                    db_file=db_file,
+        t.append(HeteroAnalysisToDb(db_file=db_file,
                                     task_label=fw_name,
                                     additional_fields={
                                         "tags": spec['tags'],
@@ -363,8 +376,7 @@ class HeteroStructuresFW(Firework):
             raise ValueError("Must specify structure or previous calculation")
         t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, handler_group=handler, wall_time=wall_time))
         t.append(PassCalcLocs(name=fw_name))
-        t.append(HeteroAnalysisToDb(wf_name=spec['wf_name'],
-                                    db_file=db_file,
+        t.append(HeteroAnalysisToDb(db_file=db_file,
                                     task_label=fw_name,
                                     Formation_Energy=formation_energy,
                                     Binding_Energy=binding_energy,
@@ -376,3 +388,90 @@ class HeteroStructuresFW(Firework):
 
         super(HeteroStructuresFW, self).__init__(t, spec=spec, parents=parents,
                                                  name=fw_name, **kwargs)
+
+class ElectronicFW(Firework):
+    def __init__(self, name="Electronic", structure=None, grid_multi=2, dos=True, 
+            bader=True, cdd=False, parents=None, prev_calc_dir=None, vasp_cmd=VASP_CMD,
+            db_file=DB_FILE, copy_vasp_outputs=True, input_set_overrides=None, **kwargs):
+        """
+        Performs standard NonSCF Calculation Firework to generate uniform density
+        of states and bader files. 
+        
+        If cdd is set to True, calculations to generate 1D charge density 
+        difference for the given structure are performed. The NonSCFFW for each
+        structure have the NGiF grid densities set to 2x the default values.
+
+        Args: 
+            name (str): Name for the Firework. Defaults to compsition-Electronic.
+            structure (Structure): Input structure - only used
+                to set the name of the FW.
+            grid_multi (float): Multiplying factor to increase the NGiF grids 
+                density. Defaults to 2x NGiF grid default set by VASP.
+            dos (bool): If True, peforms high quality site-orbital
+                projected density of states. If you wish to change
+                the default setting (reciprocal density = 100) add 
+                'dos' under 'user_additions'. Default set to True.
+            bader (bool): If True, peforms high quality bader analysis
+                for the given structure. 
+            cdd (bool): Whether to compute the charge density difference for
+                the given structure. Default set to False.
+
+            parents (Firework): Parents of this particular Firework.
+                FW or list of FWS.
+            prev_calc_dir (str): Path to a previous calculation to
+                copy from.
+            vasp_cmd (str): Command to run vasp.
+            db_file (str): Path to file specifying db credentials.
+            copy_vasp_outputs (bool): Whether to copy outputs from
+                previous run. Defaults to True copying the CHGCAR and
+                OUTCAR.
+            input_set_overrides (dict): Arguments passed to the
+                "from_prev_calc" method of the MPNonSCFSet. This 
+                parameter allows a user to modify the default values of
+                the input set. For example, passing the key value pair
+                    {'reciprocal_density': 1000}
+                will override default k-point meshes for uniform 
+                calculations.
+            **kwargs: Other kwargs that are passed to Firework.__init__.
+        """
+        input_set_overrides = input_set_overrides or {}
+
+        fw_name = "{}-{}".format(structure.composition.reduced_formula,
+            name)
+        
+        t = []
+        if prev_calc_dir:
+            t.append(CopyVaspOutputs(calc_dir=prev_calc_dir, 
+                additional_files=["CHGCAR", "OUTCAR"]))
+        elif parents:
+            t.append(CopyVaspOutputs(calc_loc=True, additional_files=["CHGCAR",
+                "OUTCAR"]))
+        else:
+            raise ValueError("Must specify previous calculation for NonSCFFW")
+
+        t.append(WriteVaspNSCFFromPrev(prev_calc_dir=".", 
+            mode="uniform", 
+            **input_set_overrides))
+        t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, 
+            #handler_group=handler,
+            auto_npar=">>auto_npar<<"))
+        t.append(PassCalcLocs(name=name))
+        if not cdd:
+            t.append(HeteroAnalysisToDb(db_file=db_file,
+                task_label=fw_name,
+                dos=dos,
+                bader=bader,
+                cdd=cdd,
+                additional_fields={
+                    "tags": {'task_label': fw_name}
+                }))
+        else:
+            t.append(HeteroAnalysisToDb(db_file=db_file,
+                task_label=fw_name,
+                dos=dos,
+                bader=bader,
+                cdd=cdd,
+                additional_fields={
+                    "tags": {'task_label': fw_name}
+                }))
+        super(ElectronicFW, self).__init__(t, parents=parents, name=fw_name, **kwargs)

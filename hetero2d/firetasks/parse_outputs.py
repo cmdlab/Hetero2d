@@ -42,7 +42,6 @@ class HeteroAnalysisToDb(FiretaskBase):
     Args: 
         db_file (str): Path to file containing the database credentials.
             Supports env_chk. Default: write data to JSON file.
-        wf_name (str): The name of the workflow that this analysis is part of.
         task_label (str): The task_label (firework name) automatically generated
             by the FireWorks in Hetero2d. Used to determine what type of calculation
             is being parsed.
@@ -70,13 +69,12 @@ class HeteroAnalysisToDb(FiretaskBase):
             key.
         additional_fields (dict): Dict of additional fields to add to the database.
     """
-    required_params = ["db_file", "wf_name", "task_label"]
+    required_params = ["db_file", "task_label"]
     optional_params = ["dos", "bader", "cdd", "Adsorption_Energy", "Binding_Energy", 
             "Formation_Energy", "additional_fields"]
 
     def run_task(self, fw_spec):
         logger.info("Starting HeteroAnalysisToDb: collecting information.")
-        wf_name = self.get('wf_name')
         db_file = env_chk('>>db_file<<', fw_spec)
         task_label = self.get("task_label", None) # get task_label
 
@@ -144,10 +142,8 @@ class HeteroAnalysisToDb(FiretaskBase):
         #      Density of States and Bader Analysis      #
         if re.search("DosBader Properties:", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
-            struct_2Dsub = DosBaderTaskDoc(self, fw_spec,
-                                                           task_label, "2D_on_Substrate", 
-                                                           additional_fields,
-                                                           db_file)
+            DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 
+                            additional_fields, db_file)
         #################################################  
 
         return FWAction(stored_data=stored_data, mod_spec=mod_spec)
