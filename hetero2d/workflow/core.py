@@ -63,17 +63,17 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
             material.
         heterotransformation_params (list): A list of dictionaries where 
             the keys represent the arguments of the hetero_interfaces function
-	    and the value is the argument excluding the structures. Dictionary
-	    keys [{hetero_interfaces function args: value}]. See hetero_interfaces
-	    module for args.
+	          and the value is the argument excluding the structures. Dictionary
+	          keys [{hetero_interfaces function args: value}]. See hetero_interfaces
+	          module for args.
         slab_params (dict): Same parameter format as the TransmuterFW to 
             create a substrate slab. 
         user_additions (dict): A specification to control the workflow. 
             See firetasks.heteroiface_tasks._update_spec for a detailed list 
             of parameters. 
-	bin_2d (str): VASP run command for the VASP version compiled to restrict
+        bin_2d (str): VASP run command for the VASP version compiled to restrict
             vacuum spacing in z direction from shrinking artifically.
-	bin_3d (str): VASP run command for the VASP version compiled normally.
+	      bin_3d (str): VASP run command for the VASP version compiled normally.
     
     Other Parameters:
         dipole (bool): If True, dipole corrections will be used for all slab 

@@ -31,13 +31,132 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
-
-def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=None, db_file=None):
+# Analysis
+@explicit_serialize
+class HeteroAnalysisToDb(FiretaskBase):
     """
-    Insert a new doc for the 2d, 3d2d, bulk, substrate slab, 2d-subs generator, or 2d-subs 
-    configuration into the database.
+    Enter heterostructure workflow analysis into the database. Determines 
+    what data to enter into the database based on what calculation was
+    performed.
+
+    Args: 
+        db_file (str): Path to file containing the database credentials.
+            Supports env_chk. Default: write data to JSON file.
+        task_label (str): The task_label (firework name) automatically generated
+            by the FireWorks in Hetero2d. Used to determine what type of calculation
+            is being parsed.
+        
+    Optional params:
+        calc_dir (str): Path to dir (on current filesystem) that contains VASP
+            output files. Default: use current working directory.
+        calc_loc (str/bool): If True will set most recent calc_loc. If str
+            will search calc_locs for the matching name (most recent).
+        dos (bool/str): If True, parses the density of states assuming uniform
+            mode. Set to line if you are parsing bandstructures. Data stored 
+            in GridFS. Default set to False.
+        bader (bool): If True, bader analysis is performed for the current
+            directory. The bader.exe must exist on the path. Default set to 
+            False.
+        cdd (bool): If True, the charge density difference is performed. Default 
+            set to False.
+        Adsorption_Energy (bool): If True, the adsorption formation energy
+            analysis is calculated for the run the results are stored with the
+            structure in the database under the Adsorption_Energy key.
+        Binding_Energy (bool): If True, the binding energy will be calculated 
+            and stored in the database under the Binding Energy key.
+        Formation_Energy (bool): If True, the formation energy will be calculated
+            and stored with structure in the database under the Formation_Energy
+            key.
+        additional_fields (dict): Dict of additional fields to add to the database.
+    """
+    required_params = ["db_file", "task_label"]
+    optional_params = ["dos", "bader", "cdd", "Adsorption_Energy", "Binding_Energy", 
+            "Formation_Energy", "additional_fields"]
+
+    def run_task(self, fw_spec):
+        logger.info("Starting HeteroAnalysisToDb: collecting information.")
+        db_file = env_chk('>>db_file<<', fw_spec)
+        task_label = self.get("task_label", None) # get task_label
+
+        # determine what data to insert into the database
+        additional_fields = self.get("additional_fields", None) # update additional_fields
+
+        # define input to push to mod_spec and stored data
+        if re.search("Optimization", task_label):
+            logger.info("Cleaning up TaskDoc")
+            stored_data, mod_spec = {'analysis_info': {}}, [{'_push': {'analysis_info': {}}}]
+            info = {}
+            [info.update(element) for element in fw_spec.get('analysis_info', [{}])]
+        else:
+            stored_data, mod_spec = None, None
+
+        print('### Parsing Calculation', task_label)
+        #      Bulk Substrate Optimization Analysis     #
+        if re.search("Bulk Structure Optimization", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: Bulk")
+            struct_bulk, N_bulk, E_bulk = HeteroTaskDoc(self, fw_spec,
+                                                        task_label, 'Bulk', additional_fields,
+                                                        db_file)
+
+        # Oriented Substrate Slab Optimization Analysis #
+        if re.search("Slab Structure Optimization", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: Slab")
+            struct_sub, N_sub, E_sub = HeteroTaskDoc(self, fw_spec,
+                                                     task_label, 'Substrate', additional_fields,
+                                                     db_file)
+            info.update({'E_sub': E_sub, 'N_sub': N_sub})
+            stored_data["analysis_info"].update(info)
+            mod_spec[0]['_push']['analysis_info'].update(info)
+
+        #      2D Structure Optimization Analysis       #
+        if re.search("[^3D]2D Structure Optimization", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: 2D")
+            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec,
+                                                  task_label, '2D', additional_fields,
+                                                  db_file)
+            stored_data["analysis_info"].update({'N_2d': struct_2D.num_sites,
+                                                 'E_2d': E_2D})
+            mod_spec[0]['_push']['analysis_info'].update({'N_2d': struct_2D.num_sites,
+                                                          'E_2d': E_2D})
+
+        #     3D2D Structure Optimization Analysis      #
+        if re.search("3D2D Structure Optimization", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: 3D2D")
+            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec,
+                                                        task_label, '3D2D', additional_fields,
+                                                        db_file)
+            stored_data["analysis_info"].update({'N_3d2d': N_3D2D,
+                                                 'E_3d2d': E_3D2D})
+            mod_spec[0]['_push']['analysis_info'].update({'N_3d2d': N_3D2D,
+                                                          'E_3d2d': E_3D2D})
+
+        #     2d on substrate Optimization Analysis     #
+        if re.search("Heterostructure Optimization:", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: 2D_on_Substrate")
+            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec,
+                                                           task_label, "2D_on_Substrate", 
+                                                           additional_fields,
+                                                           db_file)
+
+        ##################################################        
+        #      Density of States and Bader Analysis      #
+        if re.search("DosBader Properties:", task_label):
+            logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
+            DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 
+                            additional_fields, db_file)
+        #################################################  
+
+        return FWAction(stored_data=stored_data, mod_spec=mod_spec)
+
+
+def HeteroTaskDoc(self, fw_spec, task_name, task_collection, 
+                  additional_fields=None, db_file=None):
+    """
+    Insert a new doc for the 2d, 3d2d, bulk, substrate slab, 2d-subs
+    generator, or 2d-subs configuration into the database.
 
     Args:
+        self (self): The self parameter for HeteroAnalysisToDb.
         fw_spec (dict): A dictionary containing all the information
             linked to this firework.
         task_name (str): The name of the firework being analyzed.
@@ -86,10 +205,12 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=N
 
     # standard database information 
     heterostructure_dict = {'compound': task_doc['formula_pretty'],
-                            'dir_name': task_doc['dir_name'], 'fw_id': fw_id, 'task_label': task_name,
+                            'dir_name': task_doc['dir_name'], 'fw_id': fw_id, 
+                            'task_label': task_name,
                             'final_energy': E, 'initial_structure': init_struct.as_dict(),
                             'final_structure': final_struct.as_dict(), 'cif': cif,
-                            'analysis_data': info, "metadata": get_meta_from_structure(structure=final_struct)}
+                            'analysis_data': info, 
+                            "metadata": get_meta_from_structure(structure=final_struct)}
 
     ##########################################
     if task_collection == "2D_on_Substrate":
@@ -175,106 +296,3 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection, additional_fields=N
 
     return final_struct, N, E
 
-
-# Analysis
-@explicit_serialize
-class HeteroAnalysisToDb(FiretaskBase):
-    """
-    Enter heterostructure workflow analysis into the database.  
-
-    Args: 
-        db_file (str): path to file containing the database credentials.
-            Supports env_chk. Default: write data to JSON file.
-        wf_name (str): The name of the workflow that this analysis is part of.
-
-    Other Parameters:
-        Adsorption_Energy (bool): If set this will perform adsorption energy
-            analysis for the run and send the results to the Adsorption_Energy
-            collection.
-        Binding_Energy (bool): If set the binding energy will be calculated 
-            and sent to the Binding Energy collection.
-        Formation_Energy (bool): If set the formation energy will be calculated
-            and sent to the Formation_Energy collection.
-        calc_dir (str): The calculation directory to parse.
-        calc_loc (str): The location to the directory to parse.
-    """
-    required_params = ["db_file", "wf_name", "task_label"]
-    optional_params = ["Adsorption_Energy", "Binding_Energy", "Formation_Energy", 'additional_fields']
-
-    def run_task(self, fw_spec):
-        logger.info("Starting HeteroAnalysisToDb")
-        wf_name = self.get('wf_name')
-        db_file = env_chk('>>db_file<<', fw_spec)
-
-        # determine what data to insert into the database
-        task_label = self.get("task_label", None)
-        additional_fields = self.get("additional_fields", None)
-
-        # initialize data arrays
-        stored_data = {'analysis_info': {}}
-        mod_spec = [{'_push': {'analysis_info': {}}}]
-        analysis = None
-
-        # ensure that the analysis_info dictionary is not 
-        # a list of dictionaries after updating
-        info = {}
-        [info.update(element) for element in fw_spec.get('analysis_info', [{}])]
-
-        print('### PRINTING TASK_LABEL', task_label)
-        #################################################
-        #      Bulk Substrate Optimization Analysis     #
-        if re.search("Bulk Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: Bulk")
-            struct_bulk, N_bulk, E_bulk = HeteroTaskDoc(self, fw_spec,
-                                                        task_label, 'Bulk', additional_fields,
-                                                        db_file)
-        #################################################
-
-        #################################################
-        # Oriented Substrate Slab Optimization Analysis #
-        if re.search("Slab Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: Slab")
-            struct_sub, N_sub, E_sub = HeteroTaskDoc(self, fw_spec,
-                                                     task_label, 'Substrate', additional_fields,
-                                                     db_file)
-            info.update({'E_sub': E_sub, 'N_sub': N_sub})
-            stored_data["analysis_info"].update(info)
-            mod_spec[0]['_push']['analysis_info'].update(info)
-        #################################################
-
-        #################################################
-        #      2D Structure Optimization Analysis       #
-        if re.search(" 2D Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 2D")
-            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec,
-                                                  task_label, '2D', additional_fields,
-                                                  db_file)
-            stored_data["analysis_info"].update({'N_2d': struct_2D.num_sites,
-                                                 'E_2d': E_2D})
-            mod_spec[0]['_push']['analysis_info'].update({'N_2d': struct_2D.num_sites,
-                                                          'E_2d': E_2D})
-        #################################################
-
-        #################################################
-        #     3D2D Structure Optimization Analysis      #
-        if re.search("3D2D Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 3D2D")
-            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec,
-                                                        task_label, '3D2D', additional_fields,
-                                                        db_file)
-            stored_data["analysis_info"].update({'N_3d2d': N_3D2D,
-                                                 'E_3d2d': E_3D2D})
-            mod_spec[0]['_push']['analysis_info'].update({'N_3d2d': N_3D2D,
-                                                          'E_3d2d': E_3D2D})
-        #################################################
-
-        #################################################       
-        #     2d on substrate Optimization Analysis     #
-        if re.search("Heterostructure Optimization:", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 2D_on_Substrate")
-            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec,
-                                                           task_label, "2D_on_Substrate", additional_fields,
-                                                           db_file)
-        #################################################        
-
-        return FWAction(stored_data=stored_data, mod_spec=mod_spec)

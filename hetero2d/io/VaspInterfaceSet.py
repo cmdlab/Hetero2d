@@ -8,14 +8,18 @@ This class instantiates the default VASP input set to simulate 2D-substrate slab
 
 from __future__ import division, unicode_literals, print_function
 
-import numpy as np
 import os
 import warnings
+import numpy as np
 
 from monty.json import MSONable
 from monty.serialization import loadfn
+
 from pymatgen import Structure
-from pymatgen.io.vasp.sets import DictSet
+from pymatgen.io.vasp.sets import DictSet, MPNonSCFSet, get_vasprun_outcar
+
+from fireworks.core.firework import FiretaskBase
+from fireworks.utilities.fw_utilities import explicit_serialize
 
 __author__ = "Tara M. Boland"
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -131,16 +135,10 @@ class CMDLInterfaceSet(CMDLRelaxSet):
     @property
     def kpoints(self):
         """
-        k_product (default to 20) is k_point number * length for a & b
-            directions, also for c direction in bulk calculations. Automatic 
-            mesh & Gamma is the default setting.
+        k_product (default to 20) is the number of k-points * length for a & b
+            directions, also for c direction in bulk calculations. Results in 
+            k_product k-points/Angstrom. Defaults to automatic mesh & Gamma.
         """
-
-        # To get input sets, the input structure has to has the same number
-        # of required parameters as a Structure object (ie. 4). Slab
-        # attributes aren't going to affect the VASP inputs anyways so
-        # converting the slab into a structure should not matter
-
         kpt = super(CMDLInterfaceSet, self).kpoints
         kpt.comment = "Automatic mesh"
         kpt.style = 'Gamma'
@@ -167,3 +165,63 @@ class CMDLInterfaceSet(CMDLRelaxSet):
         if verbosity == 1:
             d.pop("structure", None)
         return d
+
+class WriteVaspElectronicFromPrev(FiretaskBase):
+    """
+    Writes input files to perform bader analysis, density of states, and charge
+    density difference calculations.
+
+    Args:
+        grid_multi (float): Number to multiply the default NGiF grid density by. For 
+            charge density difference calculations this grid density is used for all
+            children fireworks.
+        dos (bool): If True, increases VASP default values controlling the DOS to 
+            obtain high quality site-orbital projected density of states. Use **kwargs
+            to override defaults. Default set to True.
+        bader (bool): If True, sets INCAR tags to peform generate bader analysis files. 
+        cdd (bool): If True, ensures the grid density matches the parent structure for
+            each child in the FireWork. Default set to False.
+
+    Other Parameters:
+        **kwargs (keyword arguments): User defined input to override default parameters
+            set in the MPNonSCFSet.from_prev_calc().
+
+    """
+    required_params = ["grid_multi", "dos", "bader", "cdd"]
+
+    optional_params = ["prev_calc_dir", "copy_chgcar", "nbands_factor", 
+            "reciprocal_density", "kpoints_line_density", "small_gap_multiply", "standardize", 
+            "sym_prec", "international_monoclinic", "mode", "nedos", "optics", "other_params"]
+
+    def run_task(self, fw_spec):
+        # get previous calculation information and increase accuracy
+        vis_orig = MPNonSCFSet.from_prev_calc(
+            prev_calc_dir=self.get("prev_calc_dir", "."),
+            copy_chgcar=self.get("copy_chgcar", False),
+            nbands_factor=self.get("nbands_factor", 1.2),
+            reciprocal_density=self.get("reciprocal_density", 100),
+            kpoints_line_density=self.get("kpoints_line_density",20),
+            small_gap_multiply=self.get("small_gap_multiply", None),
+            standardize=self.get("standardize", False),
+            sym_prec=self.get("sym_prec", 0.1),
+            international_monoclinic=self.get("international_monoclinic", True),
+            mode=self.get("mode", "uniform"),
+            nedos=self.get("nedos", 2001),
+            optics=self.get("optics", False),
+            **self.get("other_params", {}))
+        vis_dict = vis_orig.as_dict() # make changes to vis in dict format
+
+        grid_multi = self.get("grid_multi", 2) # NGiF grid density multiplier
+
+        # bader tags: "NGXF", "NGYF", "NGZF", "LEACHG"
+        # general tags: "LCHARG" = True,  "ICHARG" >= 10
+        # dos tags: 
+        # if dos:
+
+        # update changes to the input set
+        vis_dict["structure"] = final_structure.as_dict()
+        vis_dict.update(self.get("override_default_vasp_params", {}) or {})
+        vis = vis_orig.__class__.from_dict(vis_dict)
+        vis.write_input(".")
+
+
