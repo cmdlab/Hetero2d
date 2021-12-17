@@ -5,29 +5,24 @@
 """
 These classes write the vasp input sets used to control VASP tags.
 """
-
 from __future__ import division, print_function, unicode_literals, absolute_import
-import glob, shutil, os, numpy as np
+import os, numpy as np
+from importlib import import_module
 
-from pymatgen import Lattice, Structure, Specie
-from pymatgen.core.surface import Slab, SlabGenerator
+from pymatgen import Structure
+from pymatgen.io.vasp import Poscar 
 from pymatgen.alchemy.materials import TransformedStructure
 from pymatgen.alchemy.transmuters import StandardTransmuter
-from pymatgen.io.vasp import Incar, Poscar, Potcar, PotcarSingle
 from pymatgen.transformations.site_transformations import AddSitePropertyTransformation
 
-from importlib import import_module
-from monty.serialization import dumpfn, loadfn
-
-from atomate.utils.utils import get_logger
-
-from fireworks import Firework
 from fireworks.core.firework import FiretaskBase
 from fireworks.utilities.fw_utilities import explicit_serialize
 
-# mp_interfaces
+from atomate.utils.utils import get_logger
+
+from hetero2d.io import CMDLElectronicSet
 from hetero2d.manipulate.utils import set_sd_flags
-from hetero2d.manipulate.heterotransmuter import hetero_interfaces
+
 
 __author__ = 'Tara M. Boland'
 __email__ = 'tboland1@asu.edu'
@@ -35,6 +30,58 @@ __copyright__ = "Copyright 2020, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 
 logger = get_logger(__name__)
+
+@explicit_serialize
+class WriteVaspElectronicFromPrev(FiretaskBase):
+    """
+    Writes input files to perform bader analysis, density of states, and charge
+    density difference calculations.
+
+    Args:
+        dedos (float): Automatically set nedos using the total energy range
+            which will be divided by the energy step dedos. Default 0.01 eV.                
+        grid_density (float): Distance between grid points for the NGXF,Y,Z grids.
+            Defaults to 0.03 Angs; NGXF,Y,Z are ~2x > default. For charge 
+            density difference calculations the parent grid density is used for all
+            children fireworks.
+        dos (bool): If True, sets INCAR tags for high quality site-orbital projected 
+            density of states. Defaults to True.
+        bader (bool): If True, sets INCAR tags to generate bader analysis files. 
+        cdd (bool): If True, ensures the grid density matches between the parent 
+            and child Fireworks. Default set to False.
+
+    Other Parameters:
+        **kwargs (keyword arguments): Dict of any keyword arguments supported by the 
+            CMDLRelaxSet.from_prev_calc().
+
+    """
+    # Firework passed params:
+    # prev_calc_dir=".", # chgcar and outcar are copied here
+    # grid_density=grid_density,
+    # dedos=dedos,
+    # dos=dos,
+    # bader=bader,
+    # cdd=cdd, 
+    # **electronic_set_overrides: 
+    required_params = ["dedos", "grid_density", "dos", "bader", "cdd"]
+
+    optional_params = ["prev_calc_dir", "small_gap_multiply", "nbands_factor", "electronic_set_overrides"]
+
+    def run_task(self, fw_spec):
+        # get previous calculation information and increase accuracy
+        vis_orig = CMDLElectronicSet.from_prev_calc(
+            dedos=self.get("dedos", 0.01),
+            grid_density=self.get("grid_density", 0.03),
+            dos=self.get("dos", True ),
+            bader=self.get("bader", True),
+            cdd=self.get("cdd", False),
+            nband_factor=self.get("nbands_factor", 1),
+            small_gap_multiply=self.get("small_gap_multiply", None),
+            **self.get("electronic_set_overrides", {}))
+
+        vis_dict = vis_orig.as_dict() # make changes to vis in dict format
+
+        vis.write_input(".")
 
 
 @explicit_serialize
@@ -46,17 +93,17 @@ class WriteSlabStructureIOSet(FiretaskBase):
     only the last structure in the list is used.
 
     Args:
-        structure (Structure): input structure.
-        transformations (list): list of names of transformation classes as defined 
-            in the modules in pymatgen.transformations
+        structure (Structure): Input structure.
+        transformations (list): List of names of transformation classes as defined 
+            in the modules in pymatgen.transformations.
         vasp_input_set (VaspInputSet): VASP input set.
 
     Other Parameters:
-        transformation_params (list): list of dicts where each dict specifies the 
+        transformation_params (list): List of dicts where each dict specifies the 
             input parameters to instantiate the transformation class in the 
             transformations list.
-        override_default_vasp_params (dict): additional user input settings.
-        prev_calc_dir (str): path to previous calculation if using structure 
+        override_default_vasp_params (dict): Additional user input settings.
+        prev_calc_dir (str): Path to previous calculation if using structure 
             from another calculation.
 
     Returns:
@@ -68,7 +115,7 @@ class WriteSlabStructureIOSet(FiretaskBase):
 
     def run_task(self, fw_spec):
         """
-        Execute the transformations and write the input files for the calculation
+        Execute the transformations and write the input files for the calculation.
         """
         transformations = []
         transformation_params = self.get("transformation_params",
@@ -108,10 +155,6 @@ class WriteSlabStructureIOSet(FiretaskBase):
         vis = vis_orig.__class__.from_dict(vis_dict)
         vis.write_input(".")
 
-        # uncomment if you need to debug
-        # dumpfn(transmuter.transformed_structures[-1], "transformations.json")
-
-
 @explicit_serialize
 class WriteHeteroStructureIOSet(FiretaskBase):
     """
@@ -124,9 +167,9 @@ class WriteHeteroStructureIOSet(FiretaskBase):
             parameters include all pymatgen structure objects.
 
     Other Parameters:
-        vasp_input_set (VaspInputSet): VASP input set for the transformed 2d on sub-slab
-        override_default_vasp_params (dict): additional user input settings.
-        user_incar_settings (dict): additional incar settings to add to the calculation.
+        vasp_input_set (VaspInputSet): VASP input set for the transformed 2d on sub-slab.
+        override_default_vasp_params (dict): Additional user input settings.
+        user_incar_settings (dict): Additional incar settings to add to the calculation.
 
     Returns:
         None

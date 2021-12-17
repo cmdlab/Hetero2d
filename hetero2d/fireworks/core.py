@@ -9,39 +9,25 @@ substrates, and adsorbed 2D films on a substrate slab surface.
 """
 
 from __future__ import division, print_function, unicode_literals, absolute_import
-
 from monty.os.path import which
 
-from atomate.utils.utils import get_logger
-from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE 
-from atomate.common.firetasks.glue_tasks import PassCalcLocs
-from atomate.vasp.firetasks.run_calc import RunVaspCustodian
-from atomate.vasp.firetasks.glue_tasks import CopyVaspOutputs
-from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet
+from pymatgen import Structure
 
 from fireworks import Firework, FileWriteTask
 from fireworks.utilities.fw_utilities import get_slug
 
-from pymatgen import Structure
-from pymatgen.core.surface import Slab
+from atomate.utils.utils import get_logger
+from atomate.vasp.firetasks.run_calc import RunVaspCustodian
+from atomate.vasp.firetasks.glue_tasks import CopyVaspOutputs
+from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet
+from atomate.common.firetasks.glue_tasks import PassCalcLocs
+from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE 
 
-from hetero2d.firetasks.heteroiface_tasks import CreateHeterostructureTask
+from hetero2d.io import CMDLInterfaceSet
 from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
-from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet
-
-from hetero2d.io.VaspInterfaceSet import CMDLInterfaceSet
-
-# tmp libs
-from atomate.vasp.fireworks.core import StaticFW
-from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet,\
-    WriteVaspNSCFFromPrev
-from atomate.vasp.powerups import add_namefile, add_additional_fields_to_taskdocs,\
-    get_fws_and_tasks, add_tags
-
-from pymatgen.command_line.bader_caller import bader_analysis_from_path
-from pymatgen.io.vasp import Vasprun, Outcar, Chgcar
-
-bader_exe_exists = which("bader") or which("bader.exe")
+from hetero2d.firetasks.heteroiface_tasks import CreateHeterostructureTask
+from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet,\
+    WriteVaspElectronicFromPrev
 
 
 __author__ = 'Tara M. Boland'
@@ -51,16 +37,15 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
-# handler group for 2d-substrates
-from custodian.vasp.handlers import VaspErrorHandler, MeshSymmetryErrorHandler, UnconvergedErrorHandler, \
-    NonConvergingErrorHandler, PositiveEnergyErrorHandler, FrozenJobErrorHandler, StdErrHandler
-# Set up Custodian Error Handlers
+# custom error handler
+from custodian.vasp.handlers import VaspErrorHandler, MeshSymmetryErrorHandler,\
+    UnconvergedErrorHandler, NonConvergingErrorHandler, PositiveEnergyErrorHandler, \
+    FrozenJobErrorHandler, StdErrHandler
 subset = list(VaspErrorHandler.error_msgs.keys())
 subset.remove('brions')
 handler = [VaspErrorHandler(errors_subset_to_catch=subset), MeshSymmetryErrorHandler(),
            UnconvergedErrorHandler(), NonConvergingErrorHandler(),
            PositiveEnergyErrorHandler(), FrozenJobErrorHandler(), StdErrHandler()]
-
 
 class HeteroOptimizeFW(Firework):
     def __init__(self, spec, structure, name="Structure Optimization",
@@ -102,7 +87,8 @@ class HeteroOptimizeFW(Firework):
         name = "{}: {}".format(structure.composition.reduced_formula, name)
         user_incar_settings = user_incar_settings or None
         vasp_input_set = vasp_input_set or CMDLInterfaceSet(structure,
-                                                            auto_dipole=True, user_incar_settings=user_incar_settings,
+                                                            auto_dipole=True, 
+                                                            user_incar_settings=user_incar_settings,
                                                             vdw='optB88', iface=True)
         
         if vasp_input_set.incar["ISIF"] in (0, 1, 2, 7) and job_type == "double_relaxation":
@@ -174,7 +160,8 @@ class SubstrateSlabFW(Firework):
         # vasp input settings
         user_incar_settings = user_incar_settings or None
         vasp_input_set = vasp_input_set or CMDLInterfaceSet(structure,
-                                                            auto_dipole=True, user_incar_settings=user_incar_settings,
+                                                            auto_dipole=True,
+                                                            user_incar_settings=user_incar_settings,
                                                             vdw='optB88', iface=True)
 
         # slab settings
@@ -267,7 +254,8 @@ class GenHeteroStructuresFW(Firework):
         # VASP Input
         user_incar_settings = user_incar_settings or None
         vasp_input_set = vasp_input_set or CMDLInterfaceSet(structure,
-                                                            auto_dipole=True, user_incar_settings=user_incar_settings,
+                                                            auto_dipole=True,
+                                                            user_incar_settings=user_incar_settings,
                                                             vdw='optB88', iface=True)
 
         # Create hetero_interface Structure Firetask
@@ -336,8 +324,8 @@ class HeteroStructuresFW(Firework):
 
         # Update VASP input params
         user_incar_settings = user_incar_settings or None
-        vasp_input_set = vasp_input_set or CMDLInterfaceSet(structure,
-                                                            auto_dipole=False, iface=True, vdw='optB88',
+        vasp_input_set = vasp_input_set or CMDLInterfaceSet(structure, auto_dipole=False, 
+                                                            iface=True, vdw='optB88',
                                                             user_incar_settings=user_incar_settings)
 
         # Analysis Flags for HeteroAnalysisToDb
@@ -389,89 +377,80 @@ class HeteroStructuresFW(Firework):
         super(HeteroStructuresFW, self).__init__(t, spec=spec, parents=parents,
                                                  name=fw_name, **kwargs)
 
+
 class ElectronicFW(Firework):
-    def __init__(self, name="Electronic", structure=None, grid_multi=2, dos=True, 
-            bader=True, cdd=False, parents=None, prev_calc_dir=None, vasp_cmd=VASP_CMD,
-            db_file=DB_FILE, copy_vasp_outputs=True, input_set_overrides=None, **kwargs):
+    def __init__(self, structure, name="Electronic", dedos=0.01, grid_density=0.03,
+            tags={}, dos=True, bader=True, cdd=False, parents=None, prev_calc_dir=None, 
+            vasp_cmd=VASP_CMD, db_file=DB_FILE, copy_vasp_outputs=True, 
+            electronic_set_overrides=None, **kwargs):
         """
-        Performs standard NonSCF Calculation Firework to generate uniform density
-        of states and bader files. 
+        Performs standard NonSCF Calculation Firework to generate density of states
+        and bader files. Proceeds to parse the store results in the database. 
         
-        If cdd is set to True, calculations to generate 1D charge density 
-        difference for the given structure are performed. The NonSCFFW for each
-        structure have the NGiF grid densities set to 2x the default values.
+        If cdd is set to True, calculations to generate 1D charge density difference 
+        for the given structure are performed. The NonSCFFW for each structure has 
+        the NGiF grid densities set to 0.03 A between each point by default.
 
         Args: 
-            name (str): Name for the Firework. Defaults to compsition-Electronic.
-            structure (Structure): Input structure - only used
-                to set the name of the FW.
-            grid_multi (float): Multiplying factor to increase the NGiF grids 
-                density. Defaults to 2x NGiF grid default set by VASP.
-            dos (bool): If True, peforms high quality site-orbital
-                projected density of states. If you wish to change
-                the default setting (reciprocal density = 100) add 
-                'dos' under 'user_additions'. Default set to True.
-            bader (bool): If True, peforms high quality bader analysis
-                for the given structure. 
-            cdd (bool): Whether to compute the charge density difference for
-                the given structure. Default set to False.
+            structure (Structure): Input structure - only used to set the name of 
+                the FW.
 
-            parents (Firework): Parents of this particular Firework.
-                FW or list of FWS.
-            prev_calc_dir (str): Path to a previous calculation to
-                copy from.
+        Other Parameters:
+            name (str): Name for the Firework. Defaults to compsition-Electronic.
+            dedos (float): Automatically set nedos using the total energy range
+                which will be divided by the energy step dedos. Default 0.01 eV.                
+            grid_density (float): Distance between grid points for the NGXF,Y,Z 
+                grids. Defaults to 0.03 Angstroms; NGXF,Y,Z are ~2x > default.
+            tags (dict): A dictionary listing the tags for the firework. 
+            dos (bool): If True, peforms high quality site-orbital projected density
+                of states. Use electronic_set_overrides to change default params.
+                Defaults to True.
+            bader (bool): If True, peforms high quality bader analysis for the given
+                structure. 
+            cdd (bool): Whether to compute the z projected charge density difference
+                for the given structure. Default set to False.
+            parents (Firework): Parents of this particular Firework. FW or list of 
+                FWS.
+            prev_calc_dir (str): Path to a previous calculation to copy from.
             vasp_cmd (str): Command to run vasp.
             db_file (str): Path to file specifying db credentials.
-            copy_vasp_outputs (bool): Whether to copy outputs from
-                previous run. Defaults to True copying the CHGCAR and
-                OUTCAR.
-            input_set_overrides (dict): Arguments passed to the
-                "from_prev_calc" method of the MPNonSCFSet. This 
-                parameter allows a user to modify the default values of
-                the input set. For example, passing the key value pair
-                    {'reciprocal_density': 1000}
-                will override default k-point meshes for uniform 
-                calculations.
+            copy_vasp_outputs (bool): Whether to copy outputs from previous run.
+                Defaults to True copying the CHGCAR and OUTCAR.
+            electronic_set_overrides (dict): Arguments passed to the "from_prev_calc" 
+                method of the CMDLElectronicSet. Parameter allows a user to modify 
+                the default settings of the input set. For example, passing the key 
+                value pair {'force_gamma': True} will override default k-point mesh.
             **kwargs: Other kwargs that are passed to Firework.__init__.
         """
-        input_set_overrides = input_set_overrides or {}
-
-        fw_name = "{}-{}".format(structure.composition.reduced_formula,
-            name)
+        fw_name = "{}-{}".format(structure.composition.reduced_formula, name)
+        electronic_set_overrides = electronic_set_overrides or {}
+        tags.update({'task_label': fw_name}) if tags else {'task_label': fw_name}
         
         t = []
         if prev_calc_dir:
-            t.append(CopyVaspOutputs(calc_dir=prev_calc_dir, 
-                additional_files=["CHGCAR", "OUTCAR"]))
+            t.append(CopyVaspOutputs(calc_dir=prev_calc_dir, additional_files=["CHGCAR"]))
         elif parents:
-            t.append(CopyVaspOutputs(calc_loc=True, additional_files=["CHGCAR",
-                "OUTCAR"]))
+            t.append(CopyVaspOutputs(calc_loc=True, additional_files=["CHGCAR"]))
         else:
-            raise ValueError("Must specify previous calculation for NonSCFFW")
+            raise ValueError("Must specify previous calculation for ElectronicFW")
 
-        t.append(WriteVaspNSCFFromPrev(prev_calc_dir=".", 
-            mode="uniform", 
-            **input_set_overrides))
+        t.append(WriteVaspElectronicFromPrev(prev_calc_dir=".",
+            grid_density=grid_density,
+            dedos=dedos,
+            dos=dos,
+            bader=bader,
+            cdd=cdd, 
+            **electronic_set_overrides))
         t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, 
-            #handler_group=handler,
+            handler_group=handler,
             auto_npar=">>auto_npar<<"))
         t.append(PassCalcLocs(name=name))
-        if not cdd:
-            t.append(HeteroAnalysisToDb(db_file=db_file,
-                task_label=fw_name,
-                dos=dos,
-                bader=bader,
-                cdd=cdd,
-                additional_fields={
-                    "tags": {'task_label': fw_name}
-                }))
-        else:
-            t.append(HeteroAnalysisToDb(db_file=db_file,
-                task_label=fw_name,
-                dos=dos,
-                bader=bader,
-                cdd=cdd,
-                additional_fields={
-                    "tags": {'task_label': fw_name}
-                }))
+        t.append(HeteroAnalysisToDb(db_file=db_file,
+            task_label=fw_name,
+            dos=dos,
+            bader=bader,
+            cdd=cdd,
+            additional_fields={
+                "tags": tags
+            }))
         super(ElectronicFW, self).__init__(t, parents=parents, name=fw_name, **kwargs)

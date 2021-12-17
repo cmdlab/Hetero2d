@@ -8,8 +8,7 @@ Under active development for Hetero2d. Currently not in use as the default
 behaviour from atomate is sufficient. 
 """
 
-import os
-import shlex
+import os, shlex
 
 from atomate.utils.utils import env_chk, get_logger
 from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX

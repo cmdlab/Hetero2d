@@ -10,8 +10,7 @@ Most functions here are not intented to be used outside of specific fireworks.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
-import fnmatch, glob, gzip, json, os, re
-
+import glob, os, re
 from six.moves import range
 from copy import deepcopy
 from importlib import import_module
@@ -19,12 +18,15 @@ from importlib import import_module
 from monty.json import jsanitize
 from monty.serialization import dumpfn
 
-from atomate.utils.utils import get_logger, env_chk
-from fireworks.core.firework import FiretaskBase, FWAction
-from fireworks.utilities.fw_utilities import explicit_serialize
 from pymatgen import Structure
 
-from hetero2d.manipulate.utils import get_mongo_client
+from fireworks.core.firework import FiretaskBase, FWAction
+from fireworks.utilities.fw_utilities import explicit_serialize
+
+from atomate.utils.utils import get_logger, env_chk
+
+from hetero2d.manipulate.utils import get_mongo_client 
+
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -32,44 +34,6 @@ __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
-
-
-def find(pattern, path):
-    """
-    Finds a file on a given search path that matches the
-    pattern.
-
-    Args:
-        pattern (str): String to match on.
-        path (str): File path to search over.
-
-    Returns:
-        a list of files matching the criteria
-    """
-    result = []
-    for root, dirs, files in os.walk(path):
-        for name in files:
-            if fnmatch.fnmatch(name, pattern):
-                result.append(name)
-    return result
-
-
-def get_FWjson():
-    """
-    Helper function which reads the FW.json file in the
-    local directory and returns the FW.json file.
-    """
-    fw_file = find('FW.json*', '.')[0]
-
-    if fw_file == 'FW.json.gz':
-        with gzip.GzipFile('FW.json.gz', 'r') as p:
-            fw_json_file = json.loads(p.read().decode('utf-8'))
-    elif fw_file == 'FW.json':
-        with open('FW.json', 'rb') as p:
-            fw_json_file = json.load(p)
-
-    return fw_json_file
-
 
 # Helper Functions
 def _update_spec(additional_spec):

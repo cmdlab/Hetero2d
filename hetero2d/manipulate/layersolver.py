@@ -6,17 +6,17 @@
 Analyze an existing structure and parse it based on atomic layers. The cutoff can be
 changed but defaults to 0.5 Angstroms. Returns a LayeredStructure dictionary.
 """
-
+import numpy as np
 from copy import deepcopy
 from operator import itemgetter
 
-import numpy as np
 from pymatgen.core.structure import Structure
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
+
 __author__ = "Sydney Olson"
 __copyright__ = "Copyright 2020, CMD Lab"
-__maintainer__ = "Sydney Olson, Tara M. Boland"
+__maintainer__ = "Tara M. Boland"
 __email__ = "snolson1@asu.edu, tboland1@asu.edu"
 __date__ = "June 5, 2020"
 

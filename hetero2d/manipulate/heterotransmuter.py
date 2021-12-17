@@ -8,9 +8,9 @@ The code is adopted from the MPInterfaces to ensure the code is compatible with 
 atomate architecture, to fix minor bugs in the original code, and return interface matching criteria.
 """
 
+import numpy as np, sys
 from six.moves import range
 from copy import deepcopy
-import numpy as np, sys
 
 from mpinterfaces.transformations import reduced_supercell_vectors, get_r_list, get_angle, \
     get_mismatch, get_area, get_uniq_layercoords
@@ -20,7 +20,7 @@ from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.core.surface import Slab
 
-from hetero2d.manipulate.utils import slab_from_struct, show_struct_ase, get_fu
+from hetero2d.manipulate.utils import slab_from_struct, get_fu
 from hetero2d.manipulate.layersolver import LayerSolver
 
 __author__ = "Tara M. Boland, Arunima Singh"
@@ -73,7 +73,7 @@ def rotate_to_acute(structure):
 
 def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                               nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, 
-                              separation=3.4):
+                              separation=3.4, symprec=False):
     """
     Given the 2 slab structures and the alignment parameters, return
     slab structures with lattices that are aligned with respect to each
@@ -99,7 +99,11 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
             3 layers.
         separation (float): separation between the substrate and the 2d
             material. Defaults to 3.4 angstroms.
-
+        symprec (bool/float): Perform symmetry matching to the specified 
+            tolerance for symmetry finding between the aligned and
+            original 2D structure. Enable if you notice the 2D lattice is
+            disformed. Defaults to False.
+        
     Returns:
         aligned_sub, aligned_2d, alignment_info  
     """
@@ -285,24 +289,27 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
     mat2d.modify_lattice(lmap)
     
     ## ensure that the symmetry of the 2d and aligned 2d agree
-    sg_mat2d = SpacegroupAnalyzer(mat2d)
-    sg_align = SpacegroupAnalyzer(struct_2d)
+    if symprec:
+        sg_mat2d = SpacegroupAnalyzer(mat2d, symprec=symprec)
+        sg_align = SpacegroupAnalyzer(struct_2d, symprec=symprec)
     
-    m2d = {}
-    align = {}
-    [m2d.update({key:sg_mat2d.get_symmetry_dataset()[key]})
-        for key in ['number','hall_number','international','hall','pointgroup']]
-    [align.update({key:sg_align.get_symmetry_dataset()[key]})
-        for key in ['number','hall_number','international','hall','pointgroup']]
+        m2d = {}
+        align = {}
+        [m2d.update({key:sg_mat2d.get_symmetry_dataset()[key]})
+            for key in ['number','hall_number','international','hall','pointgroup']]
+        [align.update({key:sg_align.get_symmetry_dataset()[key]})
+            for key in ['number','hall_number','international','hall','pointgroup']]
+        # compare mat2d and aligned lattice
+        is_equal = m2d == align
 
-    # compare mat2d and aligned lattice
-    is_equal = m2d == align
-
-    if is_equal == True:
-        return substrate, mat2d, alignment_info
+        if is_equal == True:
+            return substrate, mat2d, alignment_info
+        else:
+            print('SpacegroupAnalyzer failed.\n')
+            return None, None, None
+       
     else:
-        print('SpacegroupAnalyzer failed.\n')
-        return None, None, None
+        return substrate, mat2d, alignment_info
 
 
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
@@ -384,8 +391,9 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     return hetero_interfaces
 
 
-def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
-                      nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4):
+def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200, nlayers_2d=3,
+                      nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4,
+                      symprec=False):
     """
     The given the 2D material and the substrate slab, the 2 slabs are
     combined to generate all possible unique structures for the
@@ -418,7 +426,11 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
             to 2 layers with bottom layer frozen.
         separation (float): Separation distance between struct_sub
             and struct_2d. Default 3.4 Angstroms.
-	    
+	symprec (bool/float): Perform symmetry matching to the specified 
+            tolerance for symmetry finding between the aligned and
+            original 2D structure. Enable if you notice the 2D lattice is
+            disformed. Defaults to False.
+    
     Returns:
         Unique hetero_structures list, last entry contains lattice alignment
         information. Site properties contain iface name.
@@ -432,7 +444,8 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                                                                         max_area=max_area, 
                                                                         max_mismatch=max_mismatch,
                                                                         max_angle_diff=max_angle_diff, 
-                                                                        r1r2_tol=r1r2_tol)
+                                                                        r1r2_tol=r1r2_tol,
+                                                                        symprec=symprec)
 
     # exit if the aligned_hetero_structures returns None due to bad symmetry
     if sub_aligned is None:
@@ -449,7 +462,8 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                                                                             max_area=max_area, 
                                                                             max_mismatch=max_mismatch,
                                                                             max_angle_diff=max_angle_diff, 
-                                                                            r1r2_tol=r1r2_tol)
+                                                                            r1r2_tol=r1r2_tol,
+                                                                            symprec=symprec)
         
         # exit if the aligned_hetero_structures returns None due to bad symmetry
         if sub_aligned is None:
@@ -484,6 +498,9 @@ def iface_name(mat2d, substrate):
     will always be the same but the 2d materials indices shit and these are changed from one configuration to
     the next. 
     """
+    #TODO: get wyckoff symbols of pre-combined structures to create a unique iface name.
+    # @tboland1
+
     # Gather Layer Data from LayerSolver
     sub_data = LayerSolver(structure=substrate)
     td_data = LayerSolver(structure=mat2d)

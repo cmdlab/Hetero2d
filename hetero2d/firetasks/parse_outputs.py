@@ -13,16 +13,17 @@ import glob, os, re
 from monty.json import jsanitize
 from monty.serialization import dumpfn
 
-from atomate.common.firetasks.glue_tasks import get_calc_loc 
-from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
-from atomate.vasp.drones import VaspDrone
+from pymatgen import Structure
+
 from fireworks.core.firework import FiretaskBase, FWAction
 from fireworks.utilities.fw_serializers import DATETIME_HANDLER
 from fireworks.utilities.fw_utilities import explicit_serialize
-from pymatgen import Structure
 
-from hetero2d.firetasks.heteroiface_tasks import get_FWjson
-from hetero2d.manipulate.utils import tag_iface, get_mongo_client
+from atomate.common.firetasks.glue_tasks import get_calc_loc 
+from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
+from atomate.vasp.drones import VaspDrone
+
+from hetero2d.manipulate.utils import tag_iface, get_mongo_client, get_FWjson
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -140,6 +141,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         ##################################################        
         #      Density of States and Bader Analysis      #
+        #TODO: finish coding the analysis
         if re.search("DosBader Properties:", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
             DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 

@@ -6,10 +6,12 @@
 Useful utilities to view, analyze, and change structures. Some functions are not intended for 
 the user. 
 """
-
+import json, gzip, numpy as np, math, pymongo
 from copy import deepcopy
 from monty.serialization import loadfn
-import numpy as np, math, pymongo
+
+from ase.visualize import view
+from ase import Atom
 
 from pymatgen import Structure, Lattice, Specie
 from pymatgen.core.surface import Slab
@@ -18,10 +20,10 @@ from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 from pymatgen.io.ase import AseAtomsAdaptor
 
-from ase.visualize import view
-from ase import Atom
+from atomate.vasp.powerups import get_fws_and_tasks
 
 from hetero2d.manipulate.layersolver import LayerSolver
+
 
 __author__ = "Tara M. Boland, Arunima Singh"
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -29,7 +31,8 @@ __maintainer__ = "Tara M. Boland"
 __email__ = "tboland1@asu.edu"
 __date__ = "June 5, 2020"
 
-# Connection utilities
+############################
+### Connection utilities ###
 def get_mongo_client(db_file, db_type=None):
     """
     Connect to the database using mongoclient. Has multiple
@@ -64,10 +67,11 @@ def get_mongo_client(db_file, db_type=None):
                          + database_name + "?authSource=admin" + "&retryWrites=true" + "&w=majority" \
                          + "&wtimeout=300000"
         client = pymongo.MongoClient(connection_url)
-
     return client, database_name
 
-# Post processing functions
+############################################
+### Post/Pre processing helper functions ###
+## Structure Analyzers ##
 def average_z_sep(structure, iface_idx, initial=None):
     '''
     Get the average z separation distance between 2 
@@ -126,23 +130,6 @@ def average_z_sep(structure, iface_idx, initial=None):
     else: 
         return zsep_f, delta_2d_z
 
-def center_slab(structure):
-    """
-    Centers the atoms in a slab structure around 0.5
-    fractional height.
-
-    Args:
-        structure (Structure): Structure to center.
-        
-    Returns:
-        Centered Structure object
-    """
-    
-    center = np.average([s._fcoords[2] for s in structure.sites])
-    translation = (0, 0, 0.5 - center)
-    structure.translate_sites(range(len(structure.sites)), translation)
-    return structure
-
 def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     '''
     Given superlattice structures and original unit cell structures
@@ -194,6 +181,127 @@ def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
 
     return n_2d, n_sub
 
+def center_slab(structure):
+    """
+    Centers the atoms in a slab structure around 0.5
+    fractional height.
+
+    Args:
+        structure (Structure): Structure to center.
+        
+    Returns:
+        Centered Structure object
+    """
+    
+    center = np.average([s._fcoords[2] for s in structure.sites])
+    translation = (0, 0, 0.5 - center)
+    structure.translate_sites(range(len(structure.sites)), translation)
+    return structure
+
+def tag_iface(structure, nlayers_2d, nlayers_sub=2):
+    """
+    Find the atom indices in a heterostructure by specifying how many 
+    layers there are for the 2D material. Returns a dictionary of atom
+    ids for each layer of the 2D material and nlayers_sub of the
+    substrate surface.
+
+    Args:
+        structure (Structure): The hetero_interface structure.
+            Should be an unrelaxed structure.
+        nlayers_2d (int): The number of layers contained
+            within the 2d material.
+        nalyers_sub (int): The number of layers of the substrate
+            surface to include in the interface tags.
+            
+    Returns:
+        layer_indices
+    """
+    # set structure as slab
+    interface = slab_from_struct(structure)
+    # get z coords of the sites
+    z_coords = interface.frac_coords[:, 2]
+    # round z coords to avoid precision errors from np
+    z_coords_round = [round_decimals_down(i, decimals=3) for i in z_coords]
+    # get the z-cords of atoms at interface
+    unique_layer_coords = np.unique(z_coords_round)
+
+    # get all unique coords for each layer
+    layer_coords_dict = {}
+    # get 2d layer indices
+    for idx in list(range(1, nlayers_2d+1)):
+        layer_coords = unique_layer_coords[-idx]
+        layer_name = '2d_layer_' + str(abs(idx))
+        layer_coords_dict[layer_name] = layer_coords
+    # get sub layer indices
+    for count, idx in enumerate(range(nlayers_2d+1, nlayers_2d+nlayers_sub+1)):
+        layer_coords = unique_layer_coords[-idx]
+        layer_name = 'sub_layer_' + str(count+1)
+        layer_coords_dict[layer_name] = layer_coords 
+    
+    # get atom ids for each layer
+    layer_indices = {key: [] for key in layer_coords_dict.keys()}
+    for idx, site in enumerate(structure.sites):
+        site_coords = round_decimals_down(site.frac_coords[2], decimals=3)
+        if site_coords in layer_coords_dict.values():
+            key = get_key(layer_coords_dict, site_coords)
+            layer_indices[key].append(idx)
+
+    layer_indices['num_2d_layer'] = nlayers_2d
+    layer_indices['num_sub_layer'] = nlayers_sub
+    
+    return layer_indices
+
+def iface_layer_locator(structure, cutoff, iface_elements):
+    """
+    Helper function used to locate the iface layers from
+    the layer solver.
+
+    Args:
+        structure (Structure): input structure to find the
+            interface layers for.
+        cutoff (float): the layer separation cutoff distance.
+        iface_elements (list): A list of element species
+            that compose the top and bottom iface layers.
+            
+    Returns:
+        LayerSolver object, top_layer specie, bottom_layer specie
+    """
+    sample = LayerSolver(structure, cutoff=cutoff)
+    flag = True
+
+    # get the 2d sub separation dist (bot & top atoms) 
+    for i in range(0, len(sample) - 2):
+        # define layer data
+        l1 = sample['Layer' + str(i + 1)]
+        l2 = sample['Layer' + str(i)]
+
+        # sort layers by species
+        test_layer = sorted([l1['species'][0],
+                             l2['species'][0]])
+
+        # make sure test_layer matches the iface composition
+        if test_layer == sorted(iface_elements):
+            return sample, l1, l2
+
+    if flag:
+        print('\t\t## Iface composition not found. Maybe the surface has undergone significant relaxation.')
+        return None, None, None
+
+def atomic_distance(structure, dist=2):
+    """
+    Given a structure and an interatomic separation distance all sites which have a
+    spacing less than dist will be printed out.
+
+    Args:
+        structure (Structure): The structure to analyze.
+        dist (float): A cut-off value which defines the minimum inter_atomic spacing.
+    """
+    for idx, i in enumerate(structure.sites):
+        for idx1, j in enumerate(structure.sites):
+            if struct.distance_matrix[idx][idx1] < dist and idx != idx1:
+                print(idx, idx1, i, j)
+
+## POSCAR Modifier ##
 def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=2):
     """
     Set the relaxation flags for top and bottom layers of interface.
@@ -231,14 +339,59 @@ def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=
         print('sd_flags', sd_flags)
     return sd_flags.tolist()
 
-def get_key(my_dict, val):
-    ''' 
-    Function returns the key corresponding to a dictionary value.
+## Workflow Modifier ##
+def change_Tasks(original_wf, mode, fw_name_constraint=None,
+                 task_name_constraint='VaspToDb', change_method=None):
     '''
-    for key, value in my_dict.items():
-         if val == value:
-            return key
-    return "key doesn't exist"
+    Change the default behavior for task_name_constraint for all fw_name_constraint
+    by changing, removing, or updating the input of the method. Changes must be
+    provided using change_method. This setting will completely overwrite the current
+    method.
+    
+    Args:
+        original_wf (Workflow): Original workflow to change.
+        mode (str): Mode determines how the VaspToDb method is changed for the
+            workflow. Options are: replace (with new vasptodb method), update 
+            (the current settings for vasptodb method), and remove (vasptodb
+            method from workflow).
+        fw_name_constraint (str): Only apply changes to FWs where fw.name
+            contains this substring. Default set to None.
+        task_name_constraint (str): Name of the Firetasks to be tagged, 
+            Default is 'VaspToDb'.
+        change_method (dict): If update mode, provide a dictionary of 
+            valid arguements for the VaspToDb method in key: value format. 
+    '''
+    idx_list = get_fws_and_tasks(original_wf, fw_name_constraint=fw_name_constraint,
+        task_name_constraint=task_name_constraint)
+    
+    if mode == 'change':
+        for idx_fw, idx_t in idx_list:
+            original_wf.fws[idx_fw].tasks[idx_t].update(change_method)     
+    
+    # update all vasptodb methods given the contrainsts provided
+    if mode == 'update':
+        for idx_fw, idx_t in idx_list:
+            original_wf.fws[idx_fw].tasks[idx_t].update(change_method)
+    
+    # remove all matching vasptodb methods given the contrainsts provided
+    if mode == 'remove':
+        for idx_fw, idx_t in idx_list:
+            original_wf.fws[idx_fw].tasks.pop(idx_t)
+    return original_wf
+
+## Helper Function ##
+def get_FWjson():
+    """
+    Helper function which reads the FW.json file in the
+    local directory and returns the FW.json file.
+    """
+    try:
+        with gzip.GzipFile('FW.json.gz', 'r') as p:
+            fw_json_file = json.loads(p.read().decode('utf-8'))
+    except:
+        with open('FW.json', 'rb') as p:
+            fw_json_file = json.load(p)
+    return fw_json_file
 
 def round_decimals_down(number: float, decimals: int = 2):
     """
@@ -254,7 +407,17 @@ def round_decimals_down(number: float, decimals: int = 2):
     factor = 10 ** decimals
     return math.floor(number * factor) / factor
 
-# File Conversions Tools
+def get_key(my_dict, val):
+    ''' 
+    Function returns the key corresponding to a dictionary value.
+    '''
+    for key, value in my_dict.items():
+         if val == value:
+            return key
+    return "key doesn't exist"
+
+############################
+### Conversion Functions ###
 def slab_from_struct(structure, hkl=None):
     """                                                                         
     Reads a pymatgen structure object and returns a Slab object. Useful for reading 
@@ -318,61 +481,6 @@ def struct_from_str(string):
 
     return Structure(lattice, specie, coords)
 
-
-def tag_iface(structure, nlayers_2d, nlayers_sub=2):
-    """
-    Find the atom indices in a heterostructure by specifying how many 
-    layers there are for the 2D material. Returns a dictionary of atom
-    ids for each layer of the 2D material and nlayers_sub of the
-    substrate surface.
-
-    Args:
-        structure (Structure): The hetero_interface structure.
-            Should be an unrelaxed structure.
-        nlayers_2d (int): The number of layers contained
-            within the 2d material.
-        nalyers_sub (int): The number of layers of the substrate
-            surface to include in the interface tags.
-            
-    Returns:
-        layer_indices
-    """
-    # set structure as slab
-    interface = slab_from_struct(structure)
-    # get z coords of the sites
-    z_coords = interface.frac_coords[:, 2]
-    # round z coords to avoid precision errors from np
-    z_coords_round = [round_decimals_down(i, decimals=3) for i in z_coords]
-    # get the z-cords of atoms at interface
-    unique_layer_coords = np.unique(z_coords_round)
-
-    # get all unique coords for each layer
-    layer_coords_dict = {}
-    # get 2d layer indices
-    for idx in list(range(1, nlayers_2d+1)):
-        layer_coords = unique_layer_coords[-idx]
-        layer_name = '2d_layer_' + str(abs(idx))
-        layer_coords_dict[layer_name] = layer_coords
-    # get sub layer indices
-    for count, idx in enumerate(range(nlayers_2d+1, nlayers_2d+nlayers_sub+1)):
-        layer_coords = unique_layer_coords[-idx]
-        layer_name = 'sub_layer_' + str(count+1)
-        layer_coords_dict[layer_name] = layer_coords 
-    
-    # get atom ids for each layer
-    layer_indices = {key: [] for key in layer_coords_dict.keys()}
-    for idx, site in enumerate(structure.sites):
-        site_coords = round_decimals_down(site.frac_coords[2], decimals=3)
-        if site_coords in layer_coords_dict.values():
-            key = get_key(layer_coords_dict, site_coords)
-            layer_indices[key].append(idx)
-
-    layer_indices['num_2d_layer'] = nlayers_2d
-    layer_indices['num_sub_layer'] = nlayers_sub
-    
-    return layer_indices
-
-
 def show_struct_ase(structure):
     """
     Creates a pop up structure model for a pymatgen structure object using ase's
@@ -387,9 +495,9 @@ def show_struct_ase(structure):
     viewer = view(structure)
     return viewer
 
-
-# Structure Analysis Tools
-# TODO: it would be nice to return bond distance statistics to the user
+#########################################
+### local structure analysis function ###
+# TODO: it would be nice to return bond distance statistics to the user @tboland1
 class nn_site_indices(CrystalNN):
     """
     This function returns the nearest neighbor atom id's for a
@@ -622,53 +730,3 @@ class nn_site_indices(CrystalNN):
             nn_elms[t_site] = nn_site_elm
 
         return nn_elms
-
-def iface_layer_locator(structure, cutoff, iface_elements):
-    """
-    Helper function used to locate the iface layers from
-    the layer solver.
-
-    Args:
-        structure (Structure): input structure to find the
-            interface layers for.
-        cutoff (float): the layer separation cutoff distance.
-        iface_elements (list): A list of element species
-            that compose the top and bottom iface layers.
-            
-    Returns:
-        LayerSolver object, top_layer specie, bottom_layer specie
-    """
-    sample = LayerSolver(structure, cutoff=cutoff)
-    flag = True
-
-    # get the 2d sub separation dist (bot & top atoms) 
-    for i in range(0, len(sample) - 2):
-        # define layer data
-        l1 = sample['Layer' + str(i + 1)]
-        l2 = sample['Layer' + str(i)]
-
-        # sort layers by species
-        test_layer = sorted([l1['species'][0],
-                             l2['species'][0]])
-
-        # make sure test_layer matches the iface composition
-        if test_layer == sorted(iface_elements):
-            return sample, l1, l2
-
-    if flag:
-        print('\t\t## Iface composition not found. Maybe the surface has undergone significant relaxation.')
-        return None, None, None
-
-def atomic_distance(structure, dist=2):
-    """
-    Given a structure and an interatomic separation distance all sites which have a
-    spacing less than dist will be printed out.
-
-    Args:
-        structure (Structure): The structure to analyze.
-        dist (float): A cut-off value which defines the minimum inter_atomic spacing.
-    """
-    for idx, i in enumerate(structure.sites):
-        for idx1, j in enumerate(structure.sites):
-            if struct.distance_matrix[idx][idx1] < dist and idx != idx1:
-                print(idx, idx1, i, j)

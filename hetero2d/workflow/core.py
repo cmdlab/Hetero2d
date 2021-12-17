@@ -7,24 +7,27 @@ This module sets up the vasp input files for the workflow to simulate
 2D materials adsorbed on a substrate slab.
 """
 from __future__ import division, print_function, unicode_literals, absolute_import
-
-from uuid import uuid4
 from copy import deepcopy
+import re
 
+from pymatgen import Structure
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
-
-from atomate.vasp.config import VASP_CMD, DB_FILE
-from atomate.vasp.powerups import add_namefile
-from atomate.utils.utils import get_logger
 
 from fireworks import Firework
 from fireworks.core.firework import Workflow
 from fireworks.user_objects.dupefinders.dupefinder_exact import DupeFinderExact
 
+from atomate.utils.utils import get_logger
+from atomate.vasp.config import VASP_CMD, DB_FILE
+from atomate.vasp.powerups import add_namefile
+from atomate.vasp.fireworks.core import StaticFW
+
+from hetero2d.manipulate.utils import center_slab, change_Tasks
 from hetero2d.firetasks.heteroiface_tasks import _update_spec
-from hetero2d.manipulate.utils import center_slab
-from hetero2d.io.VaspInterfaceSet import CMDLInterfaceSet
-from hetero2d.fireworks.core import HeteroOptimizeFW, SubstrateSlabFW,  GenHeteroStructuresFW
+from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
+from hetero2d.io import CMDLInterfaceSet, CMDLElectronicSet
+from hetero2d.fireworks.core import HeteroOptimizeFW, SubstrateSlabFW, GenHeteroStructuresFW, \
+    ElectronicFW
 
 
 __author__ = 'Tara M. Boland'
@@ -34,14 +37,10 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
-def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
-				     heterotransformation_params, slab_params,
-				     user_additions, tags={}, bin_2d=VASP_CMD,
-				     bin_3d=VASP_CMD, dipole=None, uis=None,
-				     uis_2d=None, vis_2d=None, uis_3d2d=None, 
-				     vis_3d2d=None, uis_bulk=None, vis_bulk=None,
-				     uis_trans=None, vis_trans=None, uis_iface=None,
-				     vis_iface=None):
+def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterotransformation_params, 
+        slab_params, user_additions, tags={}, bin_2d=VASP_CMD, bin_3d=VASP_CMD, dipole=None, uis=None,
+        uis_2d=None, vis_2d=None, uis_3d2d=None, vis_3d2d=None, uis_bulk=None, vis_bulk=None, 
+        uis_trans=None, vis_trans=None, uis_iface=None, vis_iface=None):
     """
     Relax reference structures to determine energetic parameters related
     to the formation of 2D films adsorbed onto substrates. Heterointerfaces 
@@ -108,14 +107,13 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
     vdw = user_additions.pop('vdw', 'optB88')
     # optimization flags
     is_bulk_optimized = spec.get('is_bulk_optimized')
-    is_2d_optimized =   spec.get('is_2d_optimized')
+    is_2d_optimized = spec.get('is_2d_optimized')
     is_3d2d_optimized = spec.get('is_3d2d_optimized')
     is_sub_optimized =  spec.get('is_sub_optimized')
     
     # Vasp Input and wf input from spec
     wf_name = spec["wf_name"]
-    if dipole == None:
-        dipole = True
+    dipole = True if dipole == None else dipole
     bin_2d = bin_2d or VASP_CMD
     bin_3d = bin_3d or VASP_CMD
 
@@ -139,8 +137,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
     #####################
     ### OPTIMZIE BULK ###
     if not is_bulk_optimized:
-        name = "Bulk Structure Optimization: {}".format(
-            unique_id)
+        name = "Bulk Structure Optimization: {}".format(unique_id)
 
         # symmetry information
         sa_bulk = SpacegroupAnalyzer(struct_sub) #slab compt struct
@@ -175,8 +172,8 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
     ###############################
     ### OPTIMIZE SUBSTRATE SLAB ###    
     if not is_sub_optimized:
-        name = "Slab Structure Optimization-{}: {}".format(
-            spec['orient'], unique_id)
+        name = "Slab Structure Optimization-{}: {}".format(spec['orient'], 
+            unique_id)
         
         # VASP calculation controls
         uis_trans = uis if not uis_trans else uis_trans
@@ -186,8 +183,8 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
         
         # database tags
         tags_trans = {'substrate_composition': struct_sub.composition.reduced_formula,
-                'surface_plane': spec.get('orient'), 'unique_id': unique_id,
-                'wf_name': wf_name, 'spacegroup': sg_sub}
+            'surface_plane': spec.get('orient'), 'unique_id': unique_id,
+            'wf_name': wf_name, 'spacegroup': sg_sub}
         [tags_trans.update(tags.get(i,{})) 
              for i in ['trans','general']]
         
@@ -226,8 +223,8 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
        
         # database tags
         tags_2d = {'composition': struct_2d.composition.reduced_formula,
-                'task_label': name, 'wf_name': wf_name, 'spacegroup': sg_film,
-                'unique_id': unique_id}
+            'task_label': name, 'wf_name': wf_name, 'spacegroup': sg_film,
+            'unique_id': unique_id}
         [tags_2d.update(tags.get(i,{})) for i in ['2d','general']]
         
         # make 2D spec
@@ -261,7 +258,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
        
         # database tags
         tags_3d2d={'composition': struct_3d2d.composition.reduced_formula, 'spacegroup': sg_info,
-                'task_label': name, 'wf_name': wf_name, 'unique_id': unique_id}
+            'task_label': name, 'wf_name': wf_name, 'unique_id': unique_id}
         [tags_3d2d.update(tags.get(i,[])) for i in ['3d2d','general']]
         
         # make 3D2D spec
@@ -275,8 +272,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
             db_file=DB_FILE)) 
 
         # update links dict
-        links_dict.update({'3d2d':{
-            'fws': input_fws[len(input_fws)-1]}}) 
+        links_dict.update({'3d2d':{'fws': input_fws[len(input_fws)-1]}}) 
         if not is_2d_optimized:
             links_dict['2d']['links']=input_fws[len(input_fws)-1]
         elif is_2d_optimized:
@@ -300,8 +296,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
         'substrate_composition': struct_sub.composition.reduced_formula,
         'surface_plane': spec.get('orient'), 'wf_name': wf_name, 'film_spacegroup':
         sg_film, 'substrate_spacegroup': sg_sub, 'unique_id': unique_id}
-    [tags_iface.update(tags.get(i,{})) 
-         for i in ['iface','general']]
+    [tags_iface.update(tags.get(i,{})) for i in ['iface','general']]
   
     # make iface spec
     spec_iface = deepcopy(spec)
@@ -310,10 +305,9 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
 
     # Create heterointerface structure firework
     #    FW name is assigned in the FW below
-    input_fws.append(GenHeteroStructuresFW(spec=spec_iface,
-                                           structure=struct_2d, heterotransformation_params=
-        h_params, vasp_input_set = vis_iface,
-                                           vasp_cmd = bin_3d, db_file = DB_FILE))
+    input_fws.append(GenHeteroStructuresFW(spec=spec_iface, structure=struct_2d, 
+        heterotransformation_params=h_params, vasp_input_set = vis_iface,
+        vasp_cmd = bin_3d, db_file = DB_FILE))
 
     # update links dict
     links_dict['iface']={'fws': input_fws[len(input_fws)-1]}
@@ -347,7 +341,222 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d,
             links_dict=fw_links,
             name=name)
     wf = add_namefile(wf)
-    print('Workflow Name:',name)
+    print('Workflow Name:', name)
     print(wf.links)
 
     return wf
+
+def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
+                  dos=True, bader=True, cdd=False, user_incar_settings=None,
+                  vasp_input_set=None, vasp_cmd=VASP_CMD, **kwargs):
+    '''
+    Workflow to obtain 1) site-orbital projected DOS, 2) Bader analysis, and 3) 
+    charge density difference for the given structure. If prev_calc_dir is 
+    specified the StaticFW is skipped and a NonSCFFW is performed with reciprocal 
+    k-point density = 100 and NGiF grids 2x the previous values to converge the 
+    charge density for Bader analysis. If cdd is selected the structure spawns 3 
+    separate fireworks dividing up the input structure.  
+    
+    Args:
+        structure (Structure): Input structure. Used to name the workflow if 
+            prev_calc_dir is specified.
+        tags (dict): A dictionary of tags for the workflow. Can add 
+            individual tags for each structure when doing charge density difference
+            calculations using 'iso_1' and 'iso_2' keys.
+        user_additions (dict): A dictionary specifying addtional information and 
+            settings for the workflow.  Must provide the 'unique_id'. To override 
+            vasp_input_set defaults for ElectronicFW use 'electronic_set_overrides'
+            key. Any valid keys for MPNonSCFSet.from_prev_calc() are valid.
+            Example: {'grid_density': '0.03 A spacing between points in NGiF grid',
+            'unique_id': 1, 'split_idx':{'iso_1':[], 'iso_2':[]}, 'dedos': 0.01,
+            'electronic_set_overrides': }.
+            
+    Other parameters:
+        prev_calc_dir (str): A path specifying the previous calculation directory.
+            Retrieves previous calculation output to perform DOS, bader analysis, 
+            and write input files. If None, will create new static calculation 
+            using the provided structure.
+        dos (bool): If True, peforms high quality site-orbital projected density of
+            states. Default set to True.
+        bader (bool): If True, peforms high quality bader analysis for the given 
+            structure. Set 'grid_density' in 'user_additions' to increase the NGiF 
+            grids. Defaults to True with 2x NGiF grid default set by VASP.
+        cdd (bool): Compute the charge density difference for the given structure. 
+            If True, supply the 'split_idx' key in 'user_additions'. 'split_idx' 
+            can be the dictionary output from hetero2d.manipulate.util.tag_iface or
+            2 lists of atom indices under the keys 'iso_1' and 'iso_2'. The indices 
+            produce 2 isolated structures whose charge density is substracted from
+            the combined structure. Default set to False.
+        user_incar_settings (dict): INCAR parameters to override StaticFW defaults.
+        vasp_input_set (VaspInputSet): VASP input set, used to write the input set
+            for the VASP calculation. Defaults to CMDLInterfaceSet for StaticFW and 
+            MPNonSCFSet if prev_calc_dir.
+        vasp_cmd (str): Command to run vasp. 
+        **kwargs (keyword arguments): Other kwargs that are passed to 
+            Firework.__init__ applied to ElectronicFW.
+    '''    
+    if not prev_calc_dir and not structure: # ensure struct/prev_calc present 
+        raise ValueError("Must specify structure or previous calculation.")
+    
+    wf_name = "{}-Electronic Properties: {}".format(
+        structure.composition.reduced_formula, 
+        user_additions['unique_id']) # workflow name
+    
+    # STATIC INCAR 
+    uis = {"LCHARG": True, "IBRION": -1, "ISMEAR": 0, "SIGMA": 0.05, "NSW": 0}
+    uis_static = uis.update(user_incar_settings) if user_incar_settings else uis
+    vis_static = vasp_input_set or CMDLInterfaceSet(structure,
+        user_incar_settings=uis_static)
+    electronic_set_overrides = user_additions.get('electronic_set_overrides', {})
+    
+    # create tags
+    tags.update({'wf_name': wf_name})  # update tags with wf name
+    tags_2d, tags_sub = [tags.pop(sub_tags) if sub_tags in tags.keys() else {} 
+                         for sub_tags in ['iso_1', 'iso_2'] ]
+    
+    fws = []
+    # STATIC CALCULATION: no prev data; combined system
+    if not prev_calc_dir: # no prev dir; remove ToDb
+        static = StaticFW(structure=structure, 
+            name='Static: {}'.format(user_additions['unique_id']), 
+            vasp_input_set=vis_static, 
+            vasp_cmd=vasp_cmd,
+            prev_calc_loc=None,
+            prev_calc_dir=prev_calc_dir,
+            db_file=DB_FILE)
+        scf = static
+        fws.append(static)
+    else:
+        scf = None
+    
+    # NONSCF CALCULATION: from previous dir
+    # a basic DOS and Bader calc
+    if not cdd: 
+        electronic = ElectronicFW(name='NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            structure=structure, 
+            dedos=user_additions.get('dedos', 0.01),
+            grid_density=user_additions.get('grid_density', 0.03),
+            tags=tags,
+            dos=dos,
+            bader=bader,
+            cdd=cdd,
+            parents=scf, 
+            prev_calc_dir=prev_calc_dir,
+            vasp_cmd=vasp_cmd,
+            db_file=DB_FILE, 
+            electronic_set_overrides=electronic_set_overrides,
+            **kwargs)
+        fws.append(electronic)    
+    # Charge Density Difference
+    elif cdd: 
+        split_idx = user_additions.get('split_idx', None)
+        if split_idx == None: # raise error if cdd dict not present
+            raise ValueError("Must specify dictionary 'split_idx':{} in user_additions.")
+        
+        # get iso_1, iso_2 atom indices
+        if len(split_idx) == 2:
+            idx_2d = split_idx.get('iso_1')
+            idx_sub = split_idx.get('iso_2')
+        else:
+            # get a list of atom ids for the 2d material and substrate
+            idx_2d = [el_v for k,v in split_idx.items() if re.search('2d_layer_[\d]', k)
+                for el_v in v ] 
+            idx_sub = list(set(range(0, structure.num_sites)).difference(set(idx_2d)))
+
+        # generate iso_1 and iso_2 from combined system
+        struct_sub = Structure.from_sites(sites=[structure[i] for i in idx_sub],
+            to_unit_cell=True)
+        struct_2d = Structure.from_sites(sites=[structure[i] for i in idx_2d],
+            to_unit_cell=True)
+
+        # NONSCF CALCULATION: COMBINED
+        cdd_combined = ElectronicFW(name='Combined NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            structure=structure, 
+            dedos=user_additions.get('dedos', 0.01),
+            grid_density=user_additions.get('grid_density', 0.03),
+            tags=tags,
+            dos=dos,
+            bader=bader,
+            cdd=False,
+            parents=scf, 
+            prev_calc_dir=prev_calc_dir,
+            vasp_cmd=vasp_cmd,
+            db_file=DB_FILE, 
+            electronic_set_overrides=electronic_set_overrides,
+            **kwargs)
+        
+        # STATIC CALC: ISO_1 ISO_2 (2d and substrate)
+        tags_2d.update(tags)
+        tags_sub.update(tags)
+        static_2d = StaticFW(structure=struct_2d, 
+            name='ISO 1 Static: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            vasp_input_set=vis_static, 
+            vasp_cmd=vasp_cmd,
+            prev_calc_loc=None,
+            prev_calc_dir=None,
+            parents=None,
+            db_file=DB_FILE)
+        static_sub = StaticFW(structure=struct_sub, 
+            name='ISO 2 Static: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            vasp_input_set=vis_static, 
+            vasp_cmd=vasp_cmd,
+            prev_calc_loc=None,
+            prev_calc_dir=None,
+            parents=None,
+            db_file=DB_FILE)
+        
+        # NONSCF CALCULATION: ISO_1 ISO_2
+        cdd_2d = ElectronicFW(name='ISO 1 NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            structure=struct_2d, 
+            dedos=user_additions.get('dedos', 0.01),
+            grid_density=user_additions.get('grid_density', 0.03),
+            tags=tags_2d,
+            dos=dos,
+            bader=bader,
+            cdd=False,
+            parents=[cdd_combined, static_2d],
+            prev_calc_dir=None,
+            vasp_cmd=vasp_cmd,
+            db_file=DB_FILE,
+            electronic_set_overrides=electronic_set_overrides,
+            **kwargs)
+        cdd_sub = ElectronicFW(name='ISO 2 NSCF: DOS and Bader: {}'.format(user_additions['unique_id']),
+            structure=struct_sub, 
+            dedos=user_additions.get('dedos', 0.01),
+            grid_density=user_additions.get('grid_density', 0.03),
+            tags=tags_sub,
+            dos=dos,
+            bader=bader,
+            cdd=False, 
+            parents=[cdd_combined, static_sub],
+            prev_calc_dir=None,
+            vasp_cmd=vasp_cmd,
+            db_file=DB_FILE,
+            electronic_set_overrides=electronic_set_overrides,
+            **kwargs)
+        
+        cdd_analysis = Firework(
+            HeteroAnalysisToDb(db_file=DB_FILE,
+                task_label="Charge Density Difference Analysis",
+                dos=False,
+                bader=False,
+                cdd=cdd,
+                additional_fields={}),
+            name="Charge Density Difference Analysis", 
+            spec={"_allow_fizzled_parents": False},
+            parents=[cdd_2d, cdd_sub, cdd_combined])
+        [fws.append(i) for i in [static_2d, static_sub, cdd_2d, cdd_sub, 
+                                 cdd_combined, cdd_analysis]]
+
+    # CREATE WORKFLOW
+    wf = Workflow(fireworks=fws, name=wf_name)
+    wf = add_namefile(wf)
+    
+    # remove VaspToDb for static calculations
+    wf = change_Tasks(wf, mode='remove', fw_name_constraint=None,
+            task_name_constraint='VaspToDb')
+    
+    print(wf.name)
+    print(wf.links)
+    return wf
+
