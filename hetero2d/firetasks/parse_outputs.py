@@ -10,10 +10,14 @@ parameters and update a mongoDB with the relevant information.
 from __future__ import division, print_function, unicode_literals, absolute_import
 
 import glob, os, re
+from monty.os.path import which
 from monty.json import jsanitize
 from monty.serialization import dumpfn
 
 from pymatgen import Structure
+from pymatgen.io.vasp import Potcar
+from pymatgen.io.vasp.outputs import Vasprun
+from pymatgen.command_line.bader_caller import bader_analysis_from_path
 
 from fireworks.core.firework import FiretaskBase, FWAction
 from fireworks.utilities.fw_serializers import DATETIME_HANDLER
@@ -24,6 +28,10 @@ from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
 from atomate.vasp.drones import VaspDrone
 
 from hetero2d.manipulate.utils import tag_iface, get_mongo_client, get_FWjson
+from hetero2d.manipulate.utils import vtotav
+
+bader_exe_exists = which("bader") or which("bader.exe")
+
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -112,9 +120,8 @@ class HeteroAnalysisToDb(FiretaskBase):
         #      2D Structure Optimization Analysis       #
         if re.search("[^3D]2D Structure Optimization", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 2D")
-            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec,
-                                                  task_label, '2D', additional_fields,
-                                                  db_file)
+            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec, task_label, '2D', 
+                                                  additional_fields, db_file)
             stored_data["analysis_info"].update({'N_2d': struct_2D.num_sites,
                                                  'E_2d': E_2D})
             mod_spec[0]['_push']['analysis_info'].update({'N_2d': struct_2D.num_sites,
@@ -123,9 +130,8 @@ class HeteroAnalysisToDb(FiretaskBase):
         #     3D2D Structure Optimization Analysis      #
         if re.search("3D2D Structure Optimization", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 3D2D")
-            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec,
-                                                        task_label, '3D2D', additional_fields,
-                                                        db_file)
+            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec, task_label, 
+                                                        '3D2D', additional_fields, db_file)
             stored_data["analysis_info"].update({'N_3d2d': N_3D2D,
                                                  'E_3d2d': E_3D2D})
             mod_spec[0]['_push']['analysis_info'].update({'N_3d2d': N_3D2D,
@@ -134,20 +140,17 @@ class HeteroAnalysisToDb(FiretaskBase):
         #     2d on substrate Optimization Analysis     #
         if re.search("Heterostructure Optimization:", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 2D_on_Substrate")
-            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec,
-                                                           task_label, "2D_on_Substrate", 
+            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec, task_label, 
+                                                           "2D_on_Substrate", 
                                                            additional_fields,
                                                            db_file)
 
         ##################################################        
         #      Density of States and Bader Analysis      #
-        #TODO: finish coding the analysis
-        if re.search("DosBader Properties:", task_label):
+        if True in [dos, bader, cdd]:
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
             DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 
-                            additional_fields, db_file)
-        #################################################  
-
+                            dos, bader, cdd, additional_fields, db_file)
         return FWAction(stored_data=stored_data, mod_spec=mod_spec)
 
 
@@ -298,3 +301,92 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
 
     return final_struct, N, E
 
+def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
+                    bader, cdd, additional_fields=None, db_file=None):
+    """
+    Insert a new task document into task_collection specified by db_file
+    that contains dos, bader, and charge density difference for a set of
+    calculations.
+
+    Args:
+        fw_spec (dict): A dictionary containing all the information
+            linked to this firework.
+        task_name (str): The name of the firework being analyzed.
+        task_collection (str): The name of the task collection you
+            want to push the data to.
+        dos (bool/str): If True, parses the density of states assuming uniform
+            mode. Set to line if you are parsing bandstructures. Data stored 
+            in GridFS. Default set to False.
+        bader (bool): If True, bader analysis is performed for the current
+            directory. The bader.exe must exist on the path. Default set to 
+            False.
+        cdd (bool): If True, the charge density difference is performed. Default 
+            set to False.
+        additional_fields (dict): A dictionary containing additional
+            information you want added to the database.
+        db_file (str): a string representation for the location of
+            the database file.
+    """
+    ####TODO: make sure the task doc has access to the iface_idx for combined systems
+    #### name for the DOS
+
+    # get directory info
+    calc_dir = os.getcwd()
+    if "calc_dir" in self: # passed calc dir
+        calc_dir = self["calc_dir"]
+    elif self.get("calc_loc"): # find the calc_loc in fw_spec
+        calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
+    logger.info("PARSING DIRECTORY: {}".format(calc_dir))
+
+    drone = VaspDrone()
+    task_doc = drone.assimilate(calc_dir)
+
+    # TASKDOC: DOS processing
+    vrun = Vasprun(calc_dir)
+    if dos:
+        try:
+            dos_dict = vrun.complete_dos.as_dict()
+        except Exception:
+            raise ValueError("No valid dos data exist")
+    else:
+        dos_dict = {}
+
+    # TASKDOC: Bader processing
+    if bader:
+        ba = bader_analysis_from_path(path=calc_dir)
+        structure=Structure.from_file(filename=os.path.join(calc_dir, 'POSCAR'))
+        potcar=Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR'))
+        nelectrons={p.element: p.nelectrons for p in potcar}
+        ba['species']=[s.species_string for s in structure.sites]
+        ba['nelectrons']=[nelectrons[s] for s in species]
+        ba['zcoords']=[s.coords[2] for s in structure.sites]
+    else:
+        ba = {}
+
+    # TASKDOC: Charge Density Difference processing
+    if cdd:
+        calc_locs = fw_spec['calc_locs']
+        iso1_path = [loc['path'] for loc in calc_locs   
+                                    if re.search('ISO 1 NSCF: DOS and Bader', loc['name'])]
+        iso2_path = [loc['path'] for loc in calc_locs 
+                                    if re.search('ISO 2 NSCF: DOS and Bader', loc['name'])]
+        comb_path = [loc['path'] for loc in calc_locs 
+                                    if re.search('Combined NSCF: DOS and Bader', loc['name'])]
+        chg1, chg1, chg_comb = [vtotav(glob.glob(os.path.join(fullpath, "CHGCAR*")))
+                                        for fullpath in [iso1_path, iso2_path. comb_path]]
+        chg_cdd = list(np.array(chg_comb['chg_density'])-np.array(chg1['chg_density'])- \
+                            np.array(chg2['chg_density']))
+        cdd_dict['cdd'] = {'energies': chg1['energies'], 'chg_density': chg_cdd}
+    else:
+        cdd_dict = {}
+
+    # connect to database & insert info
+    e_dict = {**dos_dict, **bader_dict, **cdd_dict, **task_doc}
+    electronic_dict = jsanitize(e_dict) # export analysis in case update fails
+    with open('electronic_property.json', 'w') as f:
+        f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
+    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type',None))
+    db = conn[database]
+    col = db[task_collection]
+    col.insert_one(electronic_dict)
+    conn.close()

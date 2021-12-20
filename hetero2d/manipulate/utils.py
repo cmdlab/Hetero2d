@@ -6,19 +6,21 @@
 Useful utilities to view, analyze, and change structures. Some functions are not intended for 
 the user. 
 """
-import json, gzip, numpy as np, math, pymongo
+
+import os, sys, json, gzip, numpy as np, math, pymongo
 from copy import deepcopy
 from monty.serialization import loadfn
 
-from ase.visualize import view
 from ase import Atom
+from ase.visualize import view
+from ase.calculators.vasp import VaspChargeDensity
 
 from pymatgen import Structure, Lattice, Specie
+from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.core.surface import Slab
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.io.ase import AseAtomsAdaptor
 
 from atomate.vasp.powerups import get_fws_and_tasks
 
@@ -71,6 +73,98 @@ def get_mongo_client(db_file, db_type=None):
 
 ############################################
 ### Post/Pre processing helper functions ###
+def vtotav(chgcar_file, axis='z'):
+    '''
+    A script which averages a CHGCAR or LOCPOT file in one axis to 
+    make a 1D curve. User must specify filename and axis on command 
+    line. Depends on ase
+
+    Args:
+        chgcar (str): Path to the VASP CHGCAR file
+        axis (str): Axis to project the charge density onto.
+    
+    Returns:
+        { 'distance' (Ang.), 'chg_density' (projected e/A^3) }
+    '''
+    if not os.path.isfile(chgcar_file):
+        print("\n** ERROR: Input file %s was not found." % chgcar_file)
+        sys.exit()
+
+    # Specify the axis to make average in. Default is Z.
+    allowed = "xyzXYZ"
+    if allowed.find(axis) == -1 or len(axis) !=1:
+        axis = 'Z' if allowed.find(axis) == -1 or len(axis)!=1 else axis
+    axis = axis.upper() if axis.islower() else axis
+
+    # Open geometry and density class objects
+    #-----------------------------------------
+    vasp_charge = VaspChargeDensity(filename = chgcar_file)
+    potl = vasp_charge.chg[-1]
+    atoms = vasp_charge.atoms[-1]
+    del vasp_charge
+    
+    # Read in lattice parameters and scale factor
+    #---------------------------------------------
+    cell = atoms.cell
+
+    # Find length of lattice vectors
+    #--------------------------------
+    latticelength = np.dot(cell, cell.T).diagonal()
+    latticelength = latticelength**0.5
+
+    # Read in potential data
+    #------------------------
+    ngridpts = np.array(potl.shape)
+    x_grid ,y_grid ,z_grid = ngridpts[0],ngridpts[1],ngridpts[2]
+    totgridpts = ngridpts.prod() # Total number of points
+    sys.stdout.flush()
+
+    # Perform average
+    #-----------------
+    if axis=="X":
+        idir = 0
+        a = 1
+        b = 2
+    elif axis=="Y":
+        a = 0
+        idir = 1
+        b = 2
+    else:
+        a = 0
+        b = 1
+        idir = 2
+    a = (idir+1)%3
+    b = (idir+2)%3
+    
+    # At each point, sum over other two indices
+    average = np.zeros(ngridpts[idir],np.float)
+    for ipt in range(ngridpts[idir]):
+        if axis=="X":
+            average[ipt] = potl[ipt,:,:].sum()
+        elif axis=="Y":
+            average[ipt] = potl[:,ipt,:].sum()
+        else:
+            average[ipt] = potl[:,:,ipt].sum()
+
+    # Scale chgcar by size of area element in the plane,
+    # gives unit e/Ang. I.e. integrating the resulting
+    # CHG_dir file should give the total charge.
+    area = np.linalg.det([ (cell[a,a], cell[a,b] ),
+                           (cell[b,a], cell[b,b])])
+    dA = area/(ngridpts[a]*ngridpts[b])
+    average *= dA
+    
+    # Get the average
+    #-----------------
+    sys.stdout.flush()
+    proj_chg = {'distance': [], 'chg_density': []}
+    xdiff = latticelength[idir]/float(ngridpts[idir]-1)
+    for i in range(ngridpts[idir]):
+        x = i*xdiff
+        proj_chg['distance'].append(round(x, 8))
+        proj_chg['chg_density'].append(round(average[i], 8))
+    return proj_chg
+
 ## Structure Analyzers ##
 def average_z_sep(structure, iface_idx, initial=None):
     '''
