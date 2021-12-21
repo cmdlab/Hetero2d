@@ -441,7 +441,7 @@ class ElectronicFW(Firework):
             bader=bader,
             cdd=cdd, 
             **electronic_set_overrides))
-        t.append(RunVaspCustodian(vasp_cmd=vasp_cmd, 
+        t.append(RunElectronicCustodian(vasp_cmd=vasp_cmd, 
             handler_group=handler,
             auto_npar=">>auto_npar<<"))
         t.append(PassCalcLocs(name=name))

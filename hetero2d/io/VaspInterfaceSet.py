@@ -196,7 +196,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
         # enforce tags for NonSCF calcs: ICHARG should be 11
         incar.update({"IBRION": -1, "ISTART": 1, "LWAVE": False, "NSW": 0, "ISYM": 0,
-                      "ICHARG": 2})
+                      "ICHARG": 11})
         incar.update(self.kwargs.get("user_incar_settings", {}))
         return incar
 
@@ -287,7 +287,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
             # modification to the incar
             bader_settings = {"LCHARG": True, "LAECHG": True, "NGXF": ngxf, "NGYF": ngyf,
-                              "NGZF": ngzf, "ISYM": 0, "LASPH": True}
+                              "NGZF": ngzf, "LASPH": True}
             incar.update(bader_settings)
 
         # charge density difference settings
