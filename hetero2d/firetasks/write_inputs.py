@@ -69,19 +69,19 @@ class WriteVaspElectronicFromPrev(FiretaskBase):
 
     def run_task(self, fw_spec):
         # get previous calculation information and increase accuracy
-        vis_orig = CMDLElectronicSet.from_prev_calc(
+        vis_orig = CMDLElectronicSet.from_prev_calc(prev_calc_dir=self.get("prev_calc_dir", "."),
             dedos=self.get("dedos", 0.01),
             grid_density=self.get("grid_density", 0.03),
             dos=self.get("dos", True ),
             bader=self.get("bader", True),
             cdd=self.get("cdd", False),
-            nband_factor=self.get("nbands_factor", 1),
+            nbands_factor=self.get("nbands_factor", 1),
             small_gap_multiply=self.get("small_gap_multiply", None),
             **self.get("electronic_set_overrides", {}))
 
         vis_dict = vis_orig.as_dict() # make changes to vis in dict format
 
-        vis.write_input(".")
+        vis_orig.write_input(".")
 
 
 @explicit_serialize

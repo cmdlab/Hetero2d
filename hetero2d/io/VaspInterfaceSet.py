@@ -262,7 +262,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
         if small_gap_multiply:
             gap = vasprun.eigenvalue_band_properties[0]
             if gap <= small_gap_multiply[0]:
-                self.reciprocal_density = self.reciprocal_density * small_gap_multiply[1]
+                kwargs["reciprocal_density"] = kwargs.get("reciprocal_density", 200) * small_gap_multiply[1]
 
         # check if the previous calc was metallic or insulating
         gap = vasprun.complete_dos.get_gap()
