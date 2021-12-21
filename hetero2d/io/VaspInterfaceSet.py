@@ -196,7 +196,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
         # enforce tags for NonSCF calcs: ICHARG should be 11
         incar.update({"IBRION": -1, "ISTART": 1, "LWAVE": False, "NSW": 0, "ISYM": 0,
-                      "ICHARG": 11})
+                      "ICHARG": 2})
         incar.update(self.kwargs.get("user_incar_settings", {}))
         return incar
 
