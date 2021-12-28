@@ -9,14 +9,18 @@ parameters and update a mongoDB with the relevant information.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
-import glob, os, re
+import glob, os, re, gridfs, json, zlib
+import numpy as np
+from bson import ObjectId
+
 from monty.os.path import which
-from monty.json import jsanitize
+from monty.json import MontyEncoder, jsanitize
 from monty.serialization import dumpfn
 
 from pymatgen import Structure
 from pymatgen.io.vasp import Potcar
 from pymatgen.io.vasp.outputs import Vasprun
+from pymatgen.io.vasp.sets import get_vasprun_outcar
 from pymatgen.command_line.bader_caller import bader_analysis_from_path
 
 from fireworks.core.firework import FiretaskBase, FWAction
@@ -147,6 +151,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         ##################################################        
         #      Density of States and Bader Analysis      #
+        dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
         if True in [dos, bader, cdd]:
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
             DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 
@@ -342,24 +347,23 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
     task_doc = drone.assimilate(calc_dir)
 
     # TASKDOC: DOS processing
-    vrun = Vasprun(calc_dir)
+    vrun, outcar = get_vasprun_outcar('.')
     if dos:
         try:
             dos_dict = vrun.complete_dos.as_dict()
         except Exception:
             raise ValueError("No valid dos data exist")
     else:
-        dos_dict = {}
 
     # TASKDOC: Bader processing
     if bader:
         ba = bader_analysis_from_path(path=calc_dir)
-        structure=Structure.from_file(filename=os.path.join(calc_dir, 'POSCAR'))
-        potcar=Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR'))
-        nelectrons={p.element: p.nelectrons for p in potcar}
-        ba['species']=[s.species_string for s in structure.sites]
-        ba['nelectrons']=[nelectrons[s] for s in species]
-        ba['zcoords']=[s.coords[2] for s in structure.sites]
+        structure=Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
+        potcar=Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
+        nelectrons={p.element: p.nelectrons for p in potcar}                    
+        ba['species']=[s.species_string for s in structure.sites]               
+        ba['nelectrons']=[nelectrons[s] for s in ba['species']]                 
+        ba['zcoords']=[s.coords[2] for s in structure.sites]  
     else:
         ba = {}
 
@@ -373,20 +377,52 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         comb_path = [loc['path'] for loc in calc_locs 
                                     if re.search('Combined NSCF: DOS and Bader', loc['name'])]
         chg1, chg1, chg_comb = [vtotav(glob.glob(os.path.join(fullpath, "CHGCAR*")))
-                                        for fullpath in [iso1_path, iso2_path. comb_path]]
-        chg_cdd = list(np.array(chg_comb['chg_density'])-np.array(chg1['chg_density'])- \
-                            np.array(chg2['chg_density']))
+                                        for fullpath in [iso1_path, iso2_path, comb_path]]
+        chg_cdd = list( np.array(chg_comb['chg_density']) - \
+                                (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])) )
         cdd_dict['cdd'] = {'energies': chg1['energies'], 'chg_density': chg_cdd}
     else:
         cdd_dict = {}
 
     # connect to database & insert info
-    e_dict = {**dos_dict, **bader_dict, **cdd_dict, **task_doc}
+    doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 'nsites', 
+        'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements', 'nelements', 
+        'input', 'last_updated', 'custodian', 'orig_inputs']
+    store_doc = { key: task_doc[key] for key in doc_keys }
+    e_dict = {**ba, **cdd_dict, **task_doc}
     electronic_dict = jsanitize(e_dict) # export analysis in case update fails
+
+    # additional appended information
+    if additional_fields:
+        for key, value in additional_fields.items():
+            electronic_dict[key] = value
+    
+    # dump electronic properties to directory
     with open('electronic_property.json', 'w') as f:
         f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
-    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type',None))
+    
+    # insert task doc without the dos b/c its to large
+    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
     db = conn[database]
     col = db[task_collection]
-    col.insert_one(electronic_dict)
-    conn.close()
+    t_id = col.insert(electronic_dict)
+    
+    # insert the dos document into gridfs
+    if dos_dict:
+        # get object id
+        oid = oid or ObjectId()
+
+        # Putting task id in the metadata subdocument as per mongo specs
+        m_data = {"compression": "zlib", "task_id": t_id}
+        # always perform the string conversion when inserting directly to gridfs
+        d = json.dumps(dos_dict, cls=MontyEncoder)
+        d = zlib.compress(d.encode(), True)
+        # connect to gridFS
+        fs = gridfs.GridFS(database, f"{task_collection}_fs")
+        fs_id = fs.put(d, _id=oid, metadata=m_data)
+
+        # insert into gridfs
+        col.update_one({"task_id": t_id}, {"$set": {f"{dos}_compression": "zlib"}})
+        col.update_one({"task_id": t_id}, {"$set": {f"{dos}_fs_id": fs_id}})
+
+        conn.close()
