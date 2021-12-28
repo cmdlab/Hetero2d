@@ -354,6 +354,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         except Exception:
             raise ValueError("No valid dos data exist")
     else:
+        dos_dict = None
 
     # TASKDOC: Bader processing
     if bader:
@@ -389,7 +390,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements', 'nelements', 
         'input', 'last_updated', 'custodian', 'orig_inputs']
     store_doc = { key: task_doc[key] for key in doc_keys }
-    e_dict = {**ba, **cdd_dict, **task_doc}
+    e_dict = {**ba, **cdd_dict, **store_doc}
     electronic_dict = jsanitize(e_dict) # export analysis in case update fails
 
     # additional appended information
