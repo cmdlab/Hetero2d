@@ -88,6 +88,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
     def run_task(self, fw_spec):
         logger.info("Starting HeteroAnalysisToDb: collecting information.")
+        #db_file = self.get('db_file', None) or env_chk('>>db_file<<', fw_spec)
         db_file = env_chk('>>db_file<<', fw_spec)
         task_label = self.get("task_label", None) # get task_label
 
@@ -351,10 +352,13 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
     if dos:
         try:
             dos_dict = vrun.complete_dos.as_dict()
+            task_doc['get_dos'] = True
         except Exception:
+            task_doc['get_dos'] = False
             raise ValueError("No valid dos data exist")
     else:
         dos_dict = None
+        task_doc['get_dos'] = False
 
     # TASKDOC: Bader processing
     if bader:
@@ -388,7 +392,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
     # connect to database & insert info
     doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 'nsites', 
         'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements', 'nelements', 
-        'input', 'last_updated', 'custodian', 'orig_inputs']
+        'input', 'last_updated', 'custodian', 'orig_inputs', 'output', 'get_dos']
     store_doc = { key: task_doc[key] for key in doc_keys }
     e_dict = {**ba, **cdd_dict, **store_doc}
     electronic_dict = jsanitize(e_dict) # export analysis in case update fails
@@ -408,22 +412,22 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
     col = db[task_collection]
     t_id = col.insert(electronic_dict)
     
-    # insert the dos document into gridfs
+    # insert dos document into gridfs: The DOS data is referenced using the
+    # DosBader._id. To find the gridfs data DosBader._id=dos_fs.files._id 
+    # To acces the chunk stored data in dos_fs.chunks, the dos_fs.chunks.files_id =
+    # dos_fs.files._id.
+    # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
     if dos_dict:
-        # get object id
-        oid = oid or ObjectId()
-
         # Putting task id in the metadata subdocument as per mongo specs
-        m_data = {"compression": "zlib", "task_id": t_id}
+        m_data = {"compression": "zlib"}
         # always perform the string conversion when inserting directly to gridfs
         d = json.dumps(dos_dict, cls=MontyEncoder)
         d = zlib.compress(d.encode(), True)
         # connect to gridFS
-        fs = gridfs.GridFS(database, f"{task_collection}_fs")
-        fs_id = fs.put(d, _id=oid, metadata=m_data)
-
+        fs = gridfs.GridFS(db, "dos_fs")
+        fs_id = fs.put(d, _id=t_id, metadata=m_data)
         # insert into gridfs
-        col.update_one({"task_id": t_id}, {"$set": {f"{dos}_compression": "zlib"}})
-        col.update_one({"task_id": t_id}, {"$set": {f"{dos}_fs_id": fs_id}})
+        col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
+        col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
 
-        conn.close()
+    conn.close()
