@@ -194,7 +194,7 @@ def average_z_sep(structure, iface_idx, initial=None):
     z = ['sub_layer_1','2d_layer_1','2d_layer_'+str(nlayers)]
 
     # get the indices from iface that define the interface
-    idx_subs, idx_tD_top, idx_tD = [iface_idx[z] for i in z]
+    idx_subs, idx_tD_top, idx_tD = [iface_idx[i] for i in z]
     coords_f = structure.cart_coords
 
     # compute the initial 2d film width
