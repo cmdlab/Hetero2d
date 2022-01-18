@@ -155,8 +155,10 @@ class HeteroAnalysisToDb(FiretaskBase):
         dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
         if True in [dos, bader, cdd]:
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
-            DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", 
-                            dos, bader, cdd, additional_fields, db_file)
+            parse_vasp = False if cdd else True
+            obj_id = DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", dos, 
+                bader, cdd, parse_vasp, additional_fields, db_file)
+            stored_data = {'obj_id': obj_id} if obj_id else {}
         return FWAction(stored_data=stored_data, mod_spec=mod_spec)
 
 
@@ -307,8 +309,8 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
 
     return final_struct, N, E
 
-def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
-                    bader, cdd, additional_fields=None, db_file=None):
+def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
+                    cdd, parse_vasp, additional_fields=None, db_file=None):
     """
     Insert a new task document into task_collection specified by db_file
     that contains dos, bader, and charge density difference for a set of
@@ -328,6 +330,8 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
             False.
         cdd (bool): If True, the charge density difference is performed. Default 
             set to False.
+        parse_vasp (bool): If True, parses the vasprun to add extra information 
+            to the database.
         additional_fields (dict): A dictionary containing additional
             information you want added to the database.
         db_file (str): a string representation for the location of
@@ -339,6 +343,45 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         calc_dir = self["calc_dir"]
     elif self.get("calc_loc"): # find the calc_loc in fw_spec
         calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
+
+    store_doc = {} # store data doc
+
+    # connect to database & insert electronic_dict 
+    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
+    db = conn[database]
+    col = db[task_collection]
+    
+    # TASKDOC: Parse Vasp run  
+    if parse_vasp:
+        logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
+        drone = VaspDrone()
+        task_doc = drone.assimilate(calc_dir)
+        vrun, outcar = get_vasprun_outcar('.')
+        doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 
+            'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements',
+            'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 'output']
+        store_doc = {key: task_doc[key] for key in doc_keys}
+
+    # TASKDOC: DOS processing
+    if dos:
+        logger.info("Processing DOS")
+        try:
+            dos_dict = vrun.complete_dos.as_dict()
+            store_doc['get_dos'] = True
+        except Exception:
+            raise ValueError("No valid dos data exist")
+
+    # TASKDOC: Bader processing
+    if bader:
+        logger.info("Processing Bader")
+        ba = bader_analysis_from_path(path=calc_dir)
+        structure = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
+        potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
+        nelectrons = {p.element: p.nelectrons for p in potcar}                    
+        ba['species'] = [s.species_string for s in structure.sites]               
+        ba['nelectrons'] = [nelectrons[s] for s in ba['species']]                 
+        ba['zcoords'] = [s.coords[2] for s in structure.sites]  
+        store_doc.update(ba)
 
     # TASKDOC: Charge Density Difference processing
     if cdd:
@@ -356,68 +399,32 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         chg1, chg2, chg_comb = vtotav('CHGCAR_1'), vtotav('CHGCAR_2'), vtotav('CHGCAR_comb')
         chg_cdd = list(np.array(chg_comb['chg_density']) - \
                                (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])))
-        cdd_dict = {'cdd': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
+        cdd_dict = {'chg_density_diff': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
         [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
-        store_doc = {}
-    else:
-        logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
-        drone = VaspDrone()
-        task_doc = drone.assimilate(calc_dir)
-        vrun, outcar = get_vasprun_outcar('.')
-        doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 
-            'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements',
-            'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 'output']
-        store_doc = { key: task_doc[key] for key in doc_keys }
+        obj_id = fw_spec.pop('obj_id')
+        if obj_id:
+            col.update_one({"_id": obj_id}, {"$set": cdd_dict } )
    
-    # TASKDOC: DOS processing
-    if dos:
-        logger.info("Processing DOS")
-        try:
-            dos_dict = vrun.complete_dos.as_dict()
-            store_doc['get_dos'] = True
-        except Exception:
-            store_doc['get_dos'] = False
-            raise ValueError("No valid dos data exist")
-    else:
-        dos_dict = None
-        store_doc['get_dos'] = False
-
-    # TASKDOC: Bader processing
-    if bader:
-        logger.info("Processing Bader")
-        ba = bader_analysis_from_path(path=calc_dir)
-        structure = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
-        potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
-        nelectrons = {p.element: p.nelectrons for p in potcar}                    
-        ba['species'] = [s.species_string for s in structure.sites]               
-        ba['nelectrons'] = [nelectrons[s] for s in ba['species']]                 
-        ba['zcoords'] = [s.coords[2] for s in structure.sites]  
-    else:
-        ba = {}
-
-    # taylor data for storage
-    e_dict = {**ba, **cdd_dict, **store_doc}
-    electronic_dict = jsanitize(e_dict) # export analysis in case update fails
-
-    # additional appended information
+    # TASKDOC: Add additional information
     if additional_fields:
         for key, value in additional_fields.items():
-            electronic_dict[key] = value
-    
+            store_doc[key] = value
+    # sanitize database info
+    electronic_dict = jsanitize(store_doc) 
     # dump electronic properties to directory
     with open('electronic_property.json', 'w') as f:
         f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
-    
-    # connect to database & insert electronic_dict 
-    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
-    db = conn[database]
-    col = db[task_collection]
-    t_id = col.insert(electronic_dict)
-    
-    # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 
-    # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
-    # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
+
+    # Insert Data into Database
+    if any([dos, bader, parse_vasp]):
+        t_id = col.insert(electronic_dict)
+        return t_id
+    ## Separately add the dos to DB ##
     if dos_dict:
+        # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 
+        # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
+        # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
+
         # Putting task id in the metadata subdocument as per mongo specs
         m_data = {"compression": "zlib"}
         # always perform the string conversion when inserting directly to gridfs
@@ -430,3 +437,4 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
     conn.close()
+
