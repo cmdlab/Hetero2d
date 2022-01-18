@@ -32,7 +32,7 @@ from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
 from atomate.vasp.drones import VaspDrone
 
 from hetero2d.manipulate.utils import tag_iface, get_mongo_client, get_FWjson
-from hetero2d.manipulate.utils import vtotav
+from hetero2d.manipulate.utils import vtotav, decompress
 
 bader_exe_exists = which("bader") or which("bader.exe")
 
@@ -333,67 +333,69 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         db_file (str): a string representation for the location of
             the database file.
     """
-    ####TODO: make sure the task doc has access to the iface_idx for combined systems
-    #### name for the DOS
-
     # get directory info
     calc_dir = os.getcwd()
     if "calc_dir" in self: # passed calc dir
         calc_dir = self["calc_dir"]
     elif self.get("calc_loc"): # find the calc_loc in fw_spec
         calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
-    logger.info("PARSING DIRECTORY: {}".format(calc_dir))
-
-    drone = VaspDrone()
-    task_doc = drone.assimilate(calc_dir)
-
-    # TASKDOC: DOS processing
-    vrun, outcar = get_vasprun_outcar('.')
-    if dos:
-        try:
-            dos_dict = vrun.complete_dos.as_dict()
-            task_doc['get_dos'] = True
-        except Exception:
-            task_doc['get_dos'] = False
-            raise ValueError("No valid dos data exist")
-    else:
-        dos_dict = None
-        task_doc['get_dos'] = False
-
-    # TASKDOC: Bader processing
-    if bader:
-        ba = bader_analysis_from_path(path=calc_dir)
-        structure=Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
-        potcar=Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
-        nelectrons={p.element: p.nelectrons for p in potcar}                    
-        ba['species']=[s.species_string for s in structure.sites]               
-        ba['nelectrons']=[nelectrons[s] for s in ba['species']]                 
-        ba['zcoords']=[s.coords[2] for s in structure.sites]  
-    else:
-        ba = {}
 
     # TASKDOC: Charge Density Difference processing
     if cdd:
+        logger.info("Computing Charge Density Difference: {}".format(calc_dir))
         calc_locs = fw_spec['calc_locs']
         iso1_path = [loc['path'] for loc in calc_locs   
-                                    if re.search('ISO 1 NSCF: DOS and Bader', loc['name'])]
+                                    if re.search('ISO 1 NSCF: DOS and Bader', loc['name'])][0]
         iso2_path = [loc['path'] for loc in calc_locs 
-                                    if re.search('ISO 2 NSCF: DOS and Bader', loc['name'])]
+                                    if re.search('ISO 2 NSCF: DOS and Bader', loc['name'])][0]
         comb_path = [loc['path'] for loc in calc_locs 
-                                    if re.search('Combined NSCF: DOS and Bader', loc['name'])]
-        chg1, chg1, chg_comb = [vtotav(glob.glob(os.path.join(fullpath, "CHGCAR*")))
-                                        for fullpath in [iso1_path, iso2_path, comb_path]]
-        chg_cdd = list( np.array(chg_comb['chg_density']) - \
-                                (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])) )
-        cdd_dict['cdd'] = {'energies': chg1['energies'], 'chg_density': chg_cdd}
+                                    if re.search('Combined NSCF: DOS and Bader', loc['name'])][0]
+        decompress(glob.glob(os.path.join(iso1_path, "CHGCAR*"))[0], 'CHGCAR_1') 
+        decompress(glob.glob(os.path.join(iso2_path, "CHGCAR*"))[0], 'CHGCAR_2')        
+        decompress(glob.glob(os.path.join(comb_path, "CHGCAR*"))[0], 'CHGCAR_comb')
+        chg1, chg2, chg_comb = vtotav('CHGCAR_1'), vtotav('CHGCAR_2'), vtotav('CHGCAR_comb')
+        chg_cdd = list(np.array(chg_comb['chg_density']) - \
+                               (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])))
+        cdd_dict = {'cdd': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
+        [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
+        store_doc = {}
     else:
-        cdd_dict = {}
+        logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
+        drone = VaspDrone()
+        task_doc = drone.assimilate(calc_dir)
+        vrun, outcar = get_vasprun_outcar('.')
+        doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 
+            'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements',
+            'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 'output']
+        store_doc = { key: task_doc[key] for key in doc_keys }
+   
+    # TASKDOC: DOS processing
+    if dos:
+        logger.info("Processing DOS")
+        try:
+            dos_dict = vrun.complete_dos.as_dict()
+            store_doc['get_dos'] = True
+        except Exception:
+            store_doc['get_dos'] = False
+            raise ValueError("No valid dos data exist")
+    else:
+        dos_dict = None
+        store_doc['get_dos'] = False
 
-    # connect to database & insert info
-    doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 'nsites', 
-        'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements', 'nelements', 
-        'input', 'last_updated', 'custodian', 'orig_inputs', 'output', 'get_dos']
-    store_doc = { key: task_doc[key] for key in doc_keys }
+    # TASKDOC: Bader processing
+    if bader:
+        logger.info("Processing Bader")
+        ba = bader_analysis_from_path(path=calc_dir)
+        structure = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
+        potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
+        nelectrons = {p.element: p.nelectrons for p in potcar}                    
+        ba['species'] = [s.species_string for s in structure.sites]               
+        ba['nelectrons'] = [nelectrons[s] for s in ba['species']]                 
+        ba['zcoords'] = [s.coords[2] for s in structure.sites]  
+    else:
+        ba = {}
+
+    # taylor data for storage
     e_dict = {**ba, **cdd_dict, **store_doc}
     electronic_dict = jsanitize(e_dict) # export analysis in case update fails
 
@@ -406,16 +408,14 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
     with open('electronic_property.json', 'w') as f:
         f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
     
-    # insert task doc without the dos b/c its to large
+    # connect to database & insert electronic_dict 
     conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
     db = conn[database]
     col = db[task_collection]
     t_id = col.insert(electronic_dict)
     
-    # insert dos document into gridfs: The DOS data is referenced using the
-    # DosBader._id. To find the gridfs data DosBader._id=dos_fs.files._id 
-    # To acces the chunk stored data in dos_fs.chunks, the dos_fs.chunks.files_id =
-    # dos_fs.files._id.
+    # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 
+    # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
     # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
     if dos_dict:
         # Putting task id in the metadata subdocument as per mongo specs
@@ -429,5 +429,4 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos,
         # insert into gridfs
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
-
     conn.close()

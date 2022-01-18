@@ -474,6 +474,11 @@ def change_Tasks(original_wf, mode, fw_name_constraint=None,
     return original_wf
 
 ## Helper Function ##
+def decompress(infile, tofile):
+    with open(infile, 'rb') as inf, open(tofile, 'w', encoding='utf8') as tof:
+        decom_str = gzip.decompress(inf.read()).decode('utf-8')
+        tof.write(decom_str)
+
 def get_FWjson():
     """
     Helper function which reads the FW.json file in the
