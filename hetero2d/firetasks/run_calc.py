@@ -260,5 +260,3 @@ class RunElectronicCustodian(FiretaskBase):
             stored_custodian_data = {"custodian": loadfn(zpath("custodian.json"))}
             return FWAction(stored_data=stored_custodian_data)
 
-
-

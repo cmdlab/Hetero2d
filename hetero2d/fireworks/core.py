@@ -24,6 +24,7 @@ from atomate.common.firetasks.glue_tasks import PassCalcLocs
 from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE 
 
 from hetero2d.io import CMDLInterfaceSet
+from hetero2d.firetasks.run_calc import RunElectronicCustodian
 from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
 from hetero2d.firetasks.heteroiface_tasks import CreateHeterostructureTask
 from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet,\
