@@ -387,12 +387,9 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
     if cdd:
         logger.info("Computing Charge Density Difference: {}".format(calc_dir))
         calc_locs = fw_spec['calc_locs']
-        iso1_path = [loc['path'] for loc in calc_locs   
-                                    if re.search('ISO 1 NSCF: DOS and Bader', loc['name'])][0]
-        iso2_path = [loc['path'] for loc in calc_locs 
-                                    if re.search('ISO 2 NSCF: DOS and Bader', loc['name'])][0]
-        comb_path = [loc['path'] for loc in calc_locs 
-                                    if re.search('Combined NSCF: DOS and Bader', loc['name'])][0]
+        iso1_path = [loc['path'] for loc in calc_locs if re.search('ISO 1 NSCF:', loc['name'])][0]
+        iso2_path = [loc['path'] for loc in calc_locs if re.search('ISO 2 NSCF:', loc['name'])][0]
+        comb_path = [loc['path'] for loc in calc_locs if re.search('Combined NSCF:', loc['name'])][0]
         decompress(glob.glob(os.path.join(iso1_path, "CHGCAR*"))[0], 'CHGCAR_1') 
         decompress(glob.glob(os.path.join(iso2_path, "CHGCAR*"))[0], 'CHGCAR_2')        
         decompress(glob.glob(os.path.join(comb_path, "CHGCAR*"))[0], 'CHGCAR_comb')

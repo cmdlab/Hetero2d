@@ -80,9 +80,7 @@ class WriteVaspElectronicFromPrev(FiretaskBase):
             **self.get("electronic_set_overrides", {}))
 
         vis_dict = vis_orig.as_dict() # make changes to vis in dict format
-
         vis_orig.write_input(".")
-
 
 @explicit_serialize
 class WriteSlabStructureIOSet(FiretaskBase):

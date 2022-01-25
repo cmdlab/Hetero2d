@@ -8,7 +8,7 @@ Under active development for Hetero2d. Simple modifications to atomate functions
 to modify the default behaviour. 
 """
 
-import os, shlex
+import os, shlex, numpy as np
 
 from pymatgen.core.structure import Structure
 from pymatgen.io.vasp.inputs import Incar, Kpoints, Poscar, VaspInput
@@ -40,7 +40,7 @@ logger = get_logger(__name__)
 
 class ElectronicJob(VaspJob):
     """
-    A subclass of VaspJob created to run a double kpoint run for calculating the bader
+    A subclass of VaspJob created to run a double kpoint run for calculating bader
     and DOS. Just runs whatever is in the directory. But conceivably can be a complex 
     processing of inputs etc. with initialization.
     """
@@ -117,8 +117,10 @@ class ElectronicJob(VaspJob):
     def double_kpoints_run(cls, vasp_cmd, auto_npar=True, half_kpts_first=True,
         auto_continue=False):
         """
-        Returns a list of two jobs corresponding to an AFLOW style double
-        relaxation run.
+        Returns a list of two jobs the first is to obtain the CHGCAR and WAVECAR
+        with a low kp number using ICHARG = 1 with increased bands, charge density 
+        grid, and nedos and the second calcaluation with ICHARG = 11 with increased
+        kp grid.
 
         Args:
             vasp_cmd (str): Command to run vasp as a list of args. For example,
@@ -136,10 +138,9 @@ class ElectronicJob(VaspJob):
             List of two jobs corresponding to an AFLOW style run.
         """
         incar_orig = Incar.from_file('INCAR')
-        incar1 = {"ICHARG": 1, "ISYM": 2, "LAECHG": False} 
-        incar2 = {key: incar_orig.get(key) for key in ["ICHARG", "LORBIT", "ISYM", "LAECHG"]
-                                                if key in incar_orig.keys()}
-        settings_overide_1 = [{"dict": "INCAR", "action": {"_set": incar1,"_unset": "LORBIT"}}]
+        incar1 = {"ICHARG": 1, "ISYM": 2, "LAECHG": False, "NEDOS": 301} 
+        incar2 = {key: incar_orig.get(key) for key in incar1.keys() if key in incar_orig.keys()}
+        settings_overide_1 = [{"dict": "INCAR", "action": {"_set": incar1}}]
         settings_overide_2 = [{"dict": "INCAR", "action": {"_set": incar2}}]
         if half_kpts_first and os.path.exists("KPOINTS") and os.path.exists("POSCAR"):
             kpts = Kpoints.from_file("KPOINTS")
@@ -147,7 +148,7 @@ class ElectronicJob(VaspJob):
             # lattice vectors with length < 8 will get >1 KPOINT
             kpts.kpts = np.round(np.maximum(np.array(kpts.kpts) / 2, 1)).astype(int).tolist()
             low_kpts_dict = kpts.as_dict()
-            settings_overide_1 = [{"dict": "KPOINTS", "action": {"_set": low_kpts_dict}}]
+            settings_overide_1.append({"dict": "KPOINTS", "action": {"_set": low_kpts_dict}})
             settings_overide_2.append({"dict": "KPOINTS", "action": {"_set": orig_kpts_dict}})
 
         return [
@@ -163,7 +164,7 @@ class ElectronicJob(VaspJob):
                 vasp_cmd,
                 final=True,
                 backup=False,
-                suffix=".kpoints2",
+                suffix="",
                 auto_npar=auto_npar,
                 auto_continue=auto_continue,
                 settings_override=settings_overide_2,
@@ -229,7 +230,7 @@ class RunElectronicCustodian(FiretaskBase):
         job_type = self.get("job_type", "double_kpoints_run")
         scratch_dir = env_chk(self.get("scratch_dir"), fw_spec)
         gzip_output = self.get("gzip_output", True)
-        max_errors = self.get("max_errors", CUSTODIAN_MAX_ERRORS)
+        max_errors = self.get("max_errors", 5)
         auto_npar = env_chk(self.get("auto_npar"), fw_spec, strict=False, default=False)
         gamma_vasp_cmd = env_chk(self.get("gamma_vasp_cmd"), fw_spec, strict=False, default=None)
         if gamma_vasp_cmd:

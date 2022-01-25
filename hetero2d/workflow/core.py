@@ -416,7 +416,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
     
     fws = []
     # STATIC CALCULATION: no prev data; combined system
-    if not prev_calc_dir: # no prev dir; remove ToDb
+    if not prev_calc_dir: # no prev dir; ToDb is removed
         static = StaticFW(structure=structure, 
             name='Static: {}'.format(user_additions['unique_id']), 
             vasp_input_set=vis_static, 
@@ -470,7 +470,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             to_unit_cell=True)
 
         # NONSCF CALCULATION: COMBINED
-        cdd_combined = ElectronicFW(name='Combined NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
+        cdd_combined = ElectronicFW(name='Combined NSCF: {}'.format(user_additions['unique_id']), 
             structure=structure, 
             dedos=user_additions.get('dedos', 0.01),
             grid_density=user_additions.get('grid_density', 0.03),
@@ -489,7 +489,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
         tags_2d.update(tags)
         tags_sub.update(tags)
         static_2d = StaticFW(structure=struct_2d, 
-            name='ISO 1 Static: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            name='ISO 1 Static: {}'.format(user_additions['unique_id']), 
             vasp_input_set=vis_static, 
             vasp_cmd=vasp_cmd,
             prev_calc_loc=None,
@@ -497,7 +497,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             parents=None,
             db_file=DB_FILE)
         static_sub = StaticFW(structure=struct_sub, 
-            name='ISO 2 Static: DOS and Bader: {}'.format(user_additions['unique_id']), 
+            name='ISO 2 Static: {}'.format(user_additions['unique_id']), 
             vasp_input_set=vis_static, 
             vasp_cmd=vasp_cmd,
             prev_calc_loc=None,
@@ -506,7 +506,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             db_file=DB_FILE)
         
         # NONSCF CALCULATION: ISO_1 ISO_2
-        cdd_2d = ElectronicFW(name='ISO 1 NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
+        cdd_2d = ElectronicFW(name='ISO 1 NSCF: {}'.format(user_additions['unique_id']), 
             structure=struct_2d, 
             dedos=user_additions.get('dedos', 0.01),
             grid_density=user_additions.get('grid_density', 0.03),
@@ -520,7 +520,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             db_file=DB_FILE,
             electronic_set_overrides=electronic_set_overrides,
             **kwargs)
-        cdd_sub = ElectronicFW(name='ISO 2 NSCF: DOS and Bader: {}'.format(user_additions['unique_id']),
+        cdd_sub = ElectronicFW(name='ISO 2 NSCF: {}'.format(user_additions['unique_id']),
             structure=struct_sub, 
             dedos=user_additions.get('dedos', 0.01),
             grid_density=user_additions.get('grid_density', 0.03),
