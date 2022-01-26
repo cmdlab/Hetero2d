@@ -8,7 +8,7 @@ Under active development for Hetero2d. Simple modifications to atomate functions
 to modify the default behaviour. 
 """
 
-import os, shlex, numpy as np
+import os, re, shlex, numpy as np
 
 from pymatgen.core.structure import Structure
 from pymatgen.io.vasp.inputs import Incar, Kpoints, Poscar, VaspInput
@@ -140,6 +140,25 @@ class ElectronicJob(VaspJob):
         incar_orig = Incar.from_file('INCAR')
         incar1 = {"ICHARG": 1, "ISYM": 2, "LAECHG": False, "NEDOS": 301} 
         incar2 = {key: incar_orig.get(key) for key in incar1.keys() if key in incar_orig.keys()}
+        # set npar looking for ntasks from os.environ: nslots and slurm_cpus_per_task
+        # fails on all slurm systems
+        slurm_keys = list(os.environ.keys())
+        ncore_keys = [ [key for key in slurm_keys if re.search(match,key) ] 
+                                for match in ['TASKS','NSLOTS']]
+        ncore_keys = list(np.unique(sum(ncore_keys, [])))
+        for key in ncore_keys:
+            if re.search('NTASKS',key):
+                ncores = os.environ[key]
+                break
+            elif re.search('NSLOTS',key):
+                ncores = os.environ[key] 
+                break
+        if ncores:
+            for npar in range(int(math.sqrt(ncores)),ncores):
+                if ncores % npar == 0:
+                    incar1['NPAR'] = npar
+                    incar2['NPAR'] = npar
+        # set the override settings
         settings_overide_1 = [{"dict": "INCAR", "action": {"_set": incar1}}]
         settings_overide_2 = [{"dict": "INCAR", "action": {"_set": incar2}}]
         if half_kpts_first and os.path.exists("KPOINTS") and os.path.exists("POSCAR"):
