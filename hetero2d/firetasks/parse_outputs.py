@@ -398,7 +398,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
                                (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])))
         cdd_dict = {'chg_density_diff': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
         [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
-        obj_id = fw_spec.pop('obj_id')
+        obj_id = fw_spec.get('obj_id', None)
         if obj_id:
             col.update_one({"_id": obj_id}, {"$set": cdd_dict } )
    
