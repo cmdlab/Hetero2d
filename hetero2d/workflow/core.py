@@ -368,7 +368,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             vasp_input_set defaults for ElectronicFW use 'electronic_set_overrides'
             key. Any valid keys for MPNonSCFSet.from_prev_calc() are valid.
             Example: {'grid_density': '0.03 A spacing between points in NGiF grid',
-            'unique_id': 1, 'split_idx':{'iso_1':[], 'iso_2':[]}, 'dedos': 0.01,
+            'unique_id': 1, 'split_idx':{'iso_1':[], 'iso_2':[]}, 'dedos': 0.05,
             'electronic_set_overrides': }.
             
     Other parameters:
@@ -434,7 +434,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
     if not cdd: 
         electronic = ElectronicFW(name='NSCF: DOS and Bader: {}'.format(user_additions['unique_id']), 
             structure=structure, 
-            dedos=user_additions.get('dedos', 0.01),
+            dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
             tags=tags,
             dos=dos,
@@ -472,7 +472,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
         # NONSCF CALCULATION: COMBINED
         cdd_combined = ElectronicFW(name='Combined NSCF: {}'.format(user_additions['unique_id']), 
             structure=structure, 
-            dedos=user_additions.get('dedos', 0.01),
+            dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
             tags=tags,
             dos=dos,
@@ -508,7 +508,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
         # NONSCF CALCULATION: ISO_1 ISO_2
         cdd_2d = ElectronicFW(name='ISO 1 NSCF: {}'.format(user_additions['unique_id']), 
             structure=struct_2d, 
-            dedos=user_additions.get('dedos', 0.01),
+            dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
             tags=tags_2d,
             dos=dos,
@@ -522,7 +522,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             **kwargs)
         cdd_sub = ElectronicFW(name='ISO 2 NSCF: {}'.format(user_additions['unique_id']),
             structure=struct_sub, 
-            dedos=user_additions.get('dedos', 0.01),
+            dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
             tags=tags_sub,
             dos=dos,

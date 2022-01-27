@@ -380,7 +380,7 @@ class HeteroStructuresFW(Firework):
 
 
 class ElectronicFW(Firework):
-    def __init__(self, structure, name="Electronic", dedos=0.01, grid_density=0.03,
+    def __init__(self, structure, name="Electronic", dedos=0.05, grid_density=0.03,
             tags={}, dos=True, bader=True, cdd=False, parents=None, prev_calc_dir=None, 
             vasp_cmd=VASP_CMD, db_file=DB_FILE, copy_vasp_outputs=True, 
             electronic_set_overrides=None, **kwargs):
@@ -399,7 +399,7 @@ class ElectronicFW(Firework):
         Other Parameters:
             name (str): Name for the Firework. Defaults to compsition-Electronic.
             dedos (float): Automatically set nedos using the total energy range
-                which will be divided by the energy step dedos. Default 0.01 eV.                
+                which will be divided by the energy step dedos. Default 0.05 eV.                
             grid_density (float): Distance between grid points for the NGXF,Y,Z 
                 grids. Defaults to 0.03 Angstroms; NGXF,Y,Z are ~2x > default.
             tags (dict): A dictionary listing the tags for the firework. 

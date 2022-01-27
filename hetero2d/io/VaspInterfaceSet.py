@@ -8,7 +8,7 @@ This class instantiates the default VASP input set to simulate 2D-substrate slab
 from __future__ import division, unicode_literals, print_function
 
 import os, warnings, six, numpy as np
-from math import ceil
+from math import ceil, floor
 
 from monty.json import MSONable
 from monty.serialization import loadfn
@@ -210,9 +210,9 @@ class CMDLElectronicSet(CMDLRelaxSet):
             force_gamma=self.force_gamma)
 
     @classmethod
-    def from_prev_calc(cls, prev_calc_dir, dedos=0.01, grid_density=0.03,
+    def from_prev_calc(cls, prev_calc_dir, dedos=0.05, grid_density=0.03,
                        dos=True, bader=True, cdd=False, small_gap_multiply=None, 
-                       nbands_factor=1, **kwargs):
+                       nbands_factor=1, dos_around_fermi=[4,6], **kwargs):
         """
         Generate a set of Vasp input files for ElectronicFW calculations from a
         directory of previous directory.
@@ -223,7 +223,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
         Other Parameters:
             dedos (float): Automatically set nedos using the total energy range
-                which will be divided by the energy step dedos. Default 0.01 eV.                
+                which will be divided by the energy step dedos. Default 0.05 eV.                
             grid_density (float): Distance between grid points for the NGXF,Y,Z grids.
                 Defaults to 0.03 Angs; NGXF,Y,Z are ~2x > default. For charge 
                 density difference calculations the parent grid density is used for all
@@ -237,6 +237,10 @@ class CMDLElectronicSet(CMDLRelaxSet):
                1st index, multiply the default reciprocal_density by the 2nd
                index.
             nbands_factor (float): Multiplicative factor for NBANDS. 
+            dos_around_fermi (bool/list): The element projected density of states is
+                calculated around the fermi level. Default range is [efermi-4, efermi+6].
+                If you want a different range supply a list i.e. [4,6] or False to compute
+                the entire dos range.
             **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar,
                 and structure which are determined from the prev_calc_dir.
         """
@@ -275,10 +279,16 @@ class CMDLElectronicSet(CMDLRelaxSet):
         # dos settings
         if dos:
             # automatic setting of nedos using the energy range and the energy step dedos
-            emax, emin = max(vasprun.complete_dos.energies), min(vasprun.complete_dos.energies)
-            nedos = ceil(abs(emin - emax) / dedos) # compute dos spacing
-            incar.update({"LORBIT": 11, "NEDOS": nedos + 1 if nedos % 2 == 0 else nedos})
-
+            if dos_around_fermi:
+                fermi = vasprun.efermi
+                emin, emax = floor(fermi - dos_around_fermi[0]), ceil(fermi + dos_around_fermi[1]) 
+                nedos = ceil(abs(emin - emax) / dedos) # compute dos spacing
+                incar.update({"LORBIT": 11, "NEDOS": nedos + 1 if nedos % 2 == 0 else nedos,
+                              "EMIN": emin, "EMAX": emax})
+            else:
+                emax, emin = max(vasprun.complete_dos.energies), min(vasprun.complete_dos.energies)
+                nedos = ceil(abs(emin - emax) / dedos) # compute dos spacing
+                incar.update({"LORBIT": 11, "NEDOS": nedos + 1 if nedos % 2 == 0 else nedos})
         # bader analysis settings
         if bader:
             # get new NGiF grid spacing

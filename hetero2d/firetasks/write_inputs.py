@@ -39,7 +39,7 @@ class WriteVaspElectronicFromPrev(FiretaskBase):
 
     Args:
         dedos (float): Automatically set nedos using the total energy range
-            which will be divided by the energy step dedos. Default 0.01 eV.                
+            which will be divided by the energy step dedos. Default 0.05 eV.                
         grid_density (float): Distance between grid points for the NGXF,Y,Z grids.
             Defaults to 0.03 Angs; NGXF,Y,Z are ~2x > default. For charge 
             density difference calculations the parent grid density is used for all
@@ -70,7 +70,7 @@ class WriteVaspElectronicFromPrev(FiretaskBase):
     def run_task(self, fw_spec):
         # get previous calculation information and increase accuracy
         vis_orig = CMDLElectronicSet.from_prev_calc(prev_calc_dir=self.get("prev_calc_dir", "."),
-            dedos=self.get("dedos", 0.01),
+            dedos=self.get("dedos", 0.05),
             grid_density=self.get("grid_density", 0.03),
             dos=self.get("dos", True ),
             bader=self.get("bader", True),

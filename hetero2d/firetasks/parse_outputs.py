@@ -366,7 +366,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
     if dos:
         logger.info("Processing DOS")
         try:
-            dos_dict = vrun.complete_dos.as_dict()
+            dos_dict = vrun.complete_dos.get_element_dos()
             store_doc['get_dos'] = True
         except Exception:
             raise ValueError("No valid dos data exist")
