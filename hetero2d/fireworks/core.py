@@ -417,10 +417,11 @@ class ElectronicFW(Firework):
             db_file (str): Path to file specifying db credentials.
             copy_vasp_outputs (bool): Whether to copy outputs from previous run.
                 Defaults to True copying the CHGCAR and OUTCAR.
-            electronic_set_overrides (dict): Arguments passed to the "from_prev_calc" 
-                method of the CMDLElectronicSet. Parameter allows a user to modify 
-                the default settings of the input set. For example, passing the key 
-                value pair {'force_gamma': True} will override default k-point mesh.
+            electronic_set_overrides (dict): Arguments listed in "from_prev_calc" 
+                method of the CMDLElectronicSet that are not explicitly listed
+                as inputs in this FW. This dictionary allows a user to modify the 
+                default settings of the input set. Valid keys are force_gamma,
+                small_gap_multiply, nbands_factor, dos_around_fermi, and **kwargs.
             **kwargs: Other kwargs that are passed to Firework.__init__.
         """
         fw_name = "{}-{}".format(structure.composition.reduced_formula, name)

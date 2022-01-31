@@ -28,6 +28,7 @@ from atomate.utils.utils import env_chk, get_logger
 from monty.os.path import zpath
 from monty.serialization import loadfn
 
+from hetero2d.manipulate.utils import slurm_set_npar
 
 __author__ = 'Tara M. Boland <tboland1@asu.edu>'
 __credits__ = 'Shyue Ping Ong <ong.sp>'
@@ -115,7 +116,7 @@ class ElectronicJob(VaspJob):
 
     @classmethod
     def double_kpoints_run(cls, vasp_cmd, auto_npar=True, half_kpts_first=True,
-        auto_continue=False):
+        auto_continue=False, slurm_npar=False):
         """
         Returns a list of two jobs the first is to obtain the CHGCAR and WAVECAR
         with a low kp number using ICHARG = 1 with increased bands, charge density 
@@ -133,6 +134,10 @@ class ElectronicJob(VaspJob):
             half_kpts_first (bool): Whether to halve the kpoint grid for the 
                 first run to obtain convergence chgcar file. Speeds up calculation 
                 time considerably for bader analysis. Defaults to True.
+            slurm_npar (bool): Use hetero2d to set npar. Use this if you are on
+                a slurm based computing resource. auto_npar does not work for
+                slurm computing arch. Default set to false. If set to true remove
+                auto_npar from my_fworker.yaml.
 
         Returns:
             List of two jobs corresponding to an AFLOW style run.
@@ -140,24 +145,10 @@ class ElectronicJob(VaspJob):
         incar_orig = Incar.from_file('INCAR')
         incar1 = {"ICHARG": 1, "ISYM": 2, "LAECHG": False, "NEDOS": 301} 
         incar2 = {key: incar_orig.get(key) for key in incar1.keys() if key in incar_orig.keys()}
-        # set npar looking for ntasks from os.environ: nslots and slurm_cpus_per_task
-        # fails on all slurm systems
-        slurm_keys = list(os.environ.keys())
-        ncore_keys = [ [key for key in slurm_keys if re.search(match,key) ] 
-                                for match in ['TASKS','NSLOTS']]
-        ncore_keys = list(np.unique(sum(ncore_keys, [])))
-        for key in ncore_keys:
-            if re.search('NTASKS',key):
-                ncores = os.environ[key]
-                break
-            elif re.search('NSLOTS',key):
-                ncores = os.environ[key] 
-                break
-        if ncores:
-            for npar in range(int(math.sqrt(ncores)),ncores):
-                if ncores % npar == 0:
-                    incar1['NPAR'] = npar
-                    incar2['NPAR'] = npar
+        if slurm_npar:
+            npar = slurm_set_npar()
+            incar1['NPAR'] = npar
+            incar2['NPAR'] = npar
         # set the override settings
         settings_overide_1 = [{"dict": "INCAR", "action": {"_set": incar1}}]
         settings_overide_2 = [{"dict": "INCAR", "action": {"_set": incar2}}]

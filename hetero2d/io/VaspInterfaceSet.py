@@ -241,7 +241,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
                 calculated around the fermi level. Default range is [efermi-4, efermi+6].
                 If you want a different range supply a list i.e. [4,6] or False to compute
                 the entire dos range.
-            **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar,
+            **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar
                 and structure which are determined from the prev_calc_dir.
         """
         vasprun, outcar = get_vasprun_outcar(prev_calc_dir)
@@ -297,7 +297,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
             # modification to the incar
             bader_settings = {"LCHARG": True, "LAECHG": True, "NGXF": ngxf, "NGYF": ngyf,
-                              "NGZF": ngzf, "LASPH": True}
+                              "NGZF": ngzf}
             incar.update(bader_settings)
 
         # charge density difference settings

@@ -367,9 +367,9 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             settings for the workflow.  Must provide the 'unique_id'. To override 
             vasp_input_set defaults for ElectronicFW use 'electronic_set_overrides'
             key. Any valid keys for MPNonSCFSet.from_prev_calc() are valid.
-            Example: {'grid_density': '0.03 A spacing between points in NGiF grid',
-            'unique_id': 1, 'split_idx':{'iso_1':[], 'iso_2':[]}, 'dedos': 0.05,
-            'electronic_set_overrides': }.
+            A full list keys are: {'grid_density': '0.03 A spacing between points 
+            in NGiF grid', 'unique_id': 1, 'split_idx':{'iso_1':[], 'iso_2':[]}, 
+            'dedos': 0.05, 'electronic_set_overrides': {}}.
             
     Other parameters:
         prev_calc_dir (str): A path specifying the previous calculation directory.
@@ -390,7 +390,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
         user_incar_settings (dict): INCAR parameters to override StaticFW defaults.
         vasp_input_set (VaspInputSet): VASP input set, used to write the input set
             for the VASP calculation. Defaults to CMDLInterfaceSet for StaticFW and 
-            MPNonSCFSet if prev_calc_dir.
+            CMDLElectronicSet if prev_calc_dir.
         vasp_cmd (str): Command to run vasp. 
         **kwargs (keyword arguments): Other kwargs that are passed to 
             Firework.__init__ applied to ElectronicFW.
@@ -544,7 +544,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
                 additional_fields={}),
             name="Charge Density Difference Analysis", 
             spec={"_allow_fizzled_parents": False},
-            parents=[cdd_2d, cdd_sub, cdd_combined])
+            parents=[cdd_combined ,cdd_2d, cdd_sub])
         [fws.append(i) for i in [static_2d, static_sub, cdd_2d, cdd_sub, 
                                  cdd_combined, cdd_analysis]]
 

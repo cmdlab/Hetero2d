@@ -7,9 +7,9 @@ Useful utilities to view, analyze, and change structures. Some functions are not
 the user. 
 """
 
-import os, sys, json, gzip, numpy as np, math, pymongo
+import re, shlex, os, sys, json, gzip, numpy as np, math, pymongo
 from copy import deepcopy
-from monty.serialization import loadfn
+from monty.serialization import loadfn, dumpfn
 
 from ase import Atom
 from ase.visualize import view
@@ -474,6 +474,40 @@ def change_Tasks(original_wf, mode, fw_name_constraint=None,
     return original_wf
 
 ## Helper Function ##
+def slurm_set_npar():
+    '''
+    Set npar for slurm computing systems. NSLOTS is not valid.
+    
+    Returns sqrt(ncores) or npar = 2
+    '''
+    # set npar looking for ntasks from os.environ: nslots and slurm_cpus_per_task
+    # fails on all slurm systems
+    slurm_keys = list(os.environ.keys())
+    ncore_keys = [ [key for key in slurm_keys if re.search(match, key) ] 
+                            for match in ['TASKS','NSLOTS']]
+    ncore_keys = list(np.unique(sum(ncore_keys, [])))
+    dumpfn(slurm_keys, 'slurm_keys.json')
+    for key in ncore_keys:
+        if re.search('SLURM_NTASKS',key):
+            ncores = int(os.environ[key])
+            break
+        elif re.search('NSLOTS',key):
+            ncores = int(os.environ[key]) 
+            break
+    npars = []
+    npar_found = False
+    if ncores and ncores != 1:
+        for npar in range(int(math.sqrt(ncores)),ncores):
+            if ncores % npar == 0:
+                npars.append(npar)
+                npar_found = True
+    if npar_found:
+        # the first npar found is the closest to sqrt of ncores
+        return npars[0]
+    else:
+        # returning npar = 2 is a safe default
+        return 2
+
 def decompress(infile, tofile):
     with open(infile, 'rb') as inf, open(tofile, 'w', encoding='utf8') as tof:
         decom_str = gzip.decompress(inf.read()).decode('utf-8')
