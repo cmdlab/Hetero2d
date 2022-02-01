@@ -418,7 +418,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
         t_id = col.insert(electronic_dict)
         return t_id
     ## Separately add the dos to DB ##
-    if dos_dict:
+    if dos:
         # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 
         # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
         # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
