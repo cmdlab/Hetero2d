@@ -76,7 +76,7 @@ class CMDLInterfaceSet(CMDLRelaxSet):
     """
     def __init__(self, structure, k_product=20, iface=True, vdw='optB88',
                  auto_dipole=False, set_mix=False, sort_structure=False,
-                 user_incar_settings=None, **kwargs):
+                 user_incar_settings={}, **kwargs):
         super(CMDLInterfaceSet, self).__init__(structure, **kwargs)
         if sort_structure:
             structure = structure.get_sorted_structure()
