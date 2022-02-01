@@ -401,6 +401,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
         [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
         obj_id = fw_spec.get('obj_id', None)
         if obj_id:
+            logger.info('CDD: Updating entry with charge density difference')
             col.update_one({"_id": obj_id}, {"$set": cdd_dict } )
    
     # TASKDOC: Add additional information
