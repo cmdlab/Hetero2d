@@ -421,13 +421,15 @@ class ElectronicFW(Firework):
                 method of the CMDLElectronicSet that are not explicitly listed
                 as inputs in this FW. This dictionary allows a user to modify the 
                 default settings of the input set. Valid keys are force_gamma,
-                small_gap_multiply, nbands_factor, dos_around_fermi, and **kwargs.
+                small_gap_multiply, nbands_factor, dos_around_fermi, slurm_npar, 
+                and **kwargs.
             **kwargs: Other kwargs that are passed to Firework.__init__.
         """
         fw_name = "{}-{}".format(structure.composition.reduced_formula, name)
         electronic_set_overrides = electronic_set_overrides or {}
+        slurm_npar = electronic_set_overrides.pop('slurm_npar', False) 
         tags.update({'task_label': fw_name}) if tags else {'task_label': fw_name}
-        
+
         t = []
         if prev_calc_dir:
             t.append(CopyVaspOutputs(calc_dir=prev_calc_dir, additional_files=["CHGCAR"]))
@@ -445,6 +447,7 @@ class ElectronicFW(Firework):
             **electronic_set_overrides))
         t.append(RunElectronicCustodian(vasp_cmd=vasp_cmd, 
             handler_group=handler,
+            slurm_npar=slurm_npar,
             auto_npar=">>auto_npar<<"))
         t.append(PassCalcLocs(name=name))
         t.append(HeteroAnalysisToDb(db_file=db_file,

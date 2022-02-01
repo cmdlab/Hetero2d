@@ -207,10 +207,13 @@ class RunElectronicCustodian(FiretaskBase):
             Supports env_chk.
         wall_time (int): Total wall time in seconds. Activates WallTimeHandler if set.
         half_kpts_first (bool): Use half the k-points first to converge charge density.
+        slurm_npar (bool): Use to set npar when using multiple nodes. Use this to get the
+            total number of tasks on a slurm queue system. auto_npar only works with 1 node.
+            Default set to false. 
     """
     required_params = ["vasp_cmd"]
     optional_params = ["job_type", "handler_group", "scratch_dir", "gzip_output", 
-                       "max_errors", "auto_npar", "gamma_vasp_cmd",
+                       "max_errors", "auto_npar", "gamma_vasp_cmd", "slurm_npar",
                        "wall_time", "half_kpts_first"]
 
     def run_task(self, fw_spec):
@@ -242,14 +245,15 @@ class RunElectronicCustodian(FiretaskBase):
         gzip_output = self.get("gzip_output", True)
         max_errors = self.get("max_errors", 5)
         auto_npar = env_chk(self.get("auto_npar"), fw_spec, strict=False, default=False)
+        slurm_npar = self.get("slurm_npar", False)
         gamma_vasp_cmd = env_chk(self.get("gamma_vasp_cmd"), fw_spec, strict=False, default=None)
         if gamma_vasp_cmd:
             gamma_vasp_cmd = shlex.split(gamma_vasp_cmd)
 
         # construct jobs
         if job_type == "double_kpoints_run":
-            jobs = ElectronicJob.double_kpoints_run(vasp_cmd, auto_npar=auto_npar,
-                                              half_kpts_first=self.get("half_kpts_first", True))
+            jobs = ElectronicJob.double_kpoints_run(vasp_cmd, auto_npar=auto_npar, 
+                  slurm_npar=slurm_npar, half_kpts_first=self.get("half_kpts_first", True))
         else:
             raise ValueError("Unsupported job type: {}".format(job_type))
 

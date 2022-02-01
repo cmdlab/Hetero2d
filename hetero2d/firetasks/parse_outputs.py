@@ -160,7 +160,7 @@ class HeteroAnalysisToDb(FiretaskBase):
                 bader, cdd, parse_vasp, additional_fields, db_file)
             stored_data = {'obj_id': obj_id} if obj_id else {}
             mod_spec = [{'_push': {'obj_id': {obj_id}}}]
-       return FWAction(stored_data=stored_data, mod_spec=mod_spec)
+        return FWAction(stored_data=stored_data, mod_spec=mod_spec)
 
 
 def HeteroTaskDoc(self, fw_spec, task_name, task_collection, 
