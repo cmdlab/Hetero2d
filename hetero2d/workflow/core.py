@@ -411,11 +411,11 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
 
     # create tags
     tags.update({'wf_name': wf_name})  # update tags with wf name
-    tags_2d, tags_sub = [tags.pop(sub_tags) if sub_tags in tags.keys() else {}
+    tags_iso1, tags_iso2 = [tags.pop(sub_tags) if sub_tags in tags.keys() else {}
                          for sub_tags in ['iso_1', 'iso_2'] ]
 
     fws = []
-    # STATIC CALCULATION: no prev data; combined system
+    # COMBINED: STATIC CALCULATION: no prev data
     if not prev_calc_dir: # no prev dir; ToDb is removed
         static = StaticFW(structure=structure,
             name='Static: {}'.format(user_additions['unique_id']),
@@ -455,20 +455,20 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
                 "calculation wihtout providing a dictionary to split the structure." \
                 "Please specify indices using 'split_idx':{} in user_additions.")
 
-        # get iso_1, iso_2 atom indices
+        # get iso_1 (2d), iso_2 (substrate) atom indices
         if len(split_idx) == 2:
-            idx_2d = split_idx.get('iso_1')
-            idx_sub = split_idx.get('iso_2')
+            idx_iso1 = split_idx.get('iso_1')
+            idx_iso2 = split_idx.get('iso_2')
         else:
             # get a list of atom ids for the 2d material and substrate
-            idx_2d = [el_v for k,v in split_idx.items() if re.search('2d_layer_[\d]', k)
+            idx_iso1 = [el_v for k,v in split_idx.items() if re.search('2d_layer_[\d]', k)
                 for el_v in v ]
-            idx_sub = list(set(range(0, structure.num_sites)).difference(set(idx_2d)))
+            idx_iso2 = list(set(range(0, structure.num_sites)).difference(set(idx_iso1)))
 
-        # generate iso_1 and iso_2 from combined system
-        struct_sub = Structure.from_sites(sites=[structure[i] for i in idx_sub],
+        # generate iso_1 (2d) and iso_2 (substrate) from combined system
+        struct_iso1 = Structure.from_sites(sites=[structure[i] for i in idx_iso1],
             to_unit_cell=True)
-        struct_2d = Structure.from_sites(sites=[structure[i] for i in idx_2d],
+        struct_iso2 = Structure.from_sites(sites=[structure[i] for i in idx_iso2],
             to_unit_cell=True)
 
         # NONSCF CALCULATION: COMBINED
@@ -487,20 +487,26 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             electronic_set_overrides=electronic_set_overrides,
             **kwargs)
 
-        # STATIC CALC: ISO_1 ISO_2 (2d and substrate)
-        tags_2d.update(tags)
-        tags_sub.update(tags)
-        static_2d = StaticFW(structure=struct_2d,
+        # STATIC CALC: ISO_1 (2d)
+        tags_iso1.update(tags)
+        vis_iso1 = deepcopy(vis_static)
+        vis_iso1.structure = struct_iso1 # 2d
+        static_iso1 = StaticFW(structure=struct_iso1,
             name='ISO 1 Static: {}'.format(user_additions['unique_id']),
-            vasp_input_set=vis_static,
+            vasp_input_set=vis_iso1,
             vasp_cmd=vasp_cmd,
             prev_calc_loc=None,
             prev_calc_dir=None,
             parents=None,
             db_file=DB_FILE)
-        static_sub = StaticFW(structure=struct_sub,
+
+        # STATIC CALC: ISO_2 (substrate)
+        tags_iso2.update(tags)
+        vis_iso2 = deepcopy(vis_static)
+        vis_iso2.structure = struct_iso2 # substrate
+        static_iso2 = StaticFW(structure=struct_iso2,
             name='ISO 2 Static: {}'.format(user_additions['unique_id']),
-            vasp_input_set=vis_static,
+            vasp_input_set=vis_iso2,
             vasp_cmd=vasp_cmd,
             prev_calc_loc=None,
             prev_calc_dir=None,
@@ -508,29 +514,29 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
             db_file=DB_FILE)
 
         # NONSCF CALCULATION: ISO_1 ISO_2
-        cdd_2d = ElectronicFW(name='ISO 1 NSCF: {}'.format(user_additions['unique_id']),
-            structure=struct_2d,
+        cdd_iso1 = ElectronicFW(name='ISO 1 NSCF: {}'.format(user_additions['unique_id']),
+            structure=struct_iso1,
             dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
-            tags=tags_2d,
+            tags=tags_iso1,
             dos=dos,
             bader=bader,
             cdd=False,
-            parents=[static_2d],
+            parents=[static_iso1],
             prev_calc_dir=None,
             vasp_cmd=vasp_cmd,
             db_file=DB_FILE,
             electronic_set_overrides=electronic_set_overrides,
             **kwargs)
-        cdd_sub = ElectronicFW(name='ISO 2 NSCF: {}'.format(user_additions['unique_id']),
-            structure=struct_sub,
+        cdd_iso2 = ElectronicFW(name='ISO 2 NSCF: {}'.format(user_additions['unique_id']),
+            structure=struct_iso2,
             dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),
-            tags=tags_sub,
+            tags=tags_iso2,
             dos=dos,
             bader=bader,
             cdd=False,
-            parents=[static_sub],
+            parents=[static_iso2],
             prev_calc_dir=None,
             vasp_cmd=vasp_cmd,
             db_file=DB_FILE,
@@ -546,8 +552,8 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
                 additional_fields={}),
             name="Charge Density Difference Analysis",
             spec={"_allow_fizzled_parents": False},
-            parents=[cdd_combined ,cdd_2d, cdd_sub])
-        [fws.append(i) for i in [static_2d, static_sub, cdd_2d, cdd_sub,
+            parents=[cdd_combined, cdd_iso1, cdd_iso2])
+        [fws.append(i) for i in [static_iso1, static_iso2, cdd_iso1, cdd_iso2,
                                  cdd_combined, cdd_analysis]]
 
     # CREATE WORKFLOW
