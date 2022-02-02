@@ -55,14 +55,6 @@ class WriteVaspElectronicFromPrev(FiretaskBase):
             CMDLRelaxSet.from_prev_calc().
 
     """
-    # Firework passed params:
-    # prev_calc_dir=".", # chgcar and outcar are copied here
-    # grid_density=grid_density,
-    # dedos=dedos,
-    # dos=dos,
-    # bader=bader,
-    # cdd=cdd, 
-    # **electronic_set_overrides: 
     required_params = ["dedos", "grid_density", "dos", "bader", "cdd"]
 
     optional_params = ["prev_calc_dir", "small_gap_multiply", "nbands_factor", "electronic_set_overrides"]
