@@ -403,6 +403,8 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         obj_id = fw_spec.get('obj_id', None)
         if obj_id:
             logger.info('CDD: Updating {} with charge density difference'.format(obj_id[0]))
+            with open('cdd_dict.json', 'w') as f:
+                f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
             col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
         else:
             logger.info('CDD: No ObjectId found.')
