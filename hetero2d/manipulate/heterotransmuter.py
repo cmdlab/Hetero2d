@@ -70,7 +70,6 @@ def rotate_to_acute(structure):
 
     return new_structure
 
-
 def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                               nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, 
                               separation=3.4, symprec=False):
@@ -311,7 +310,6 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
     else:
         return substrate, mat2d, alignment_info
 
-
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
     """
     For the given lattice matched 2D material and substrate structures, this functions computes all
@@ -392,7 +390,6 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
             hetero_interfaces.append(interface)
 
     return hetero_interfaces
-
 
 def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200, nlayers_2d=3,
                       nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4,

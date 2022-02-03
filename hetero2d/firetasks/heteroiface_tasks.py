@@ -138,7 +138,6 @@ def _update_spec(additional_spec):
                              "_dupefinder": {"_fw_name": "DupeFinderExact"}})
     return default_spec
 
-
 @explicit_serialize
 class TransferSlabTask(FiretaskBase):
     """
@@ -148,8 +147,8 @@ class TransferSlabTask(FiretaskBase):
     Args:
         label (str): The name of the structure in the 
             additional_spec dict - struct_sub.
-            
-    Returns: 
+
+    Returns:
         FWAction updating the spec
     """
     required_params = ['label']
@@ -165,7 +164,6 @@ class TransferSlabTask(FiretaskBase):
         update_spec = {"struct_sub": s}
 
         return FWAction(update_spec=update_spec)
-
 
 @explicit_serialize
 class CreateHeterostructureTask(FiretaskBase):

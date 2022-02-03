@@ -53,6 +53,7 @@ class ElectronicJob(VaspJob):
         This constructor is necessarily complex due to the need for
         flexibility. For standard kinds of runs, it's often better to use one
         of the static constructors. The defaults are usually fine too.
+
         Args:
             vasp_cmd (str): Command to run vasp as a list of args. For example,
                 if you are using mpirun, it can be something like

@@ -90,7 +90,6 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
 
     Returns:
         Heterostructure workflow
-
     """
     ### Vasp INPUT SET ###
     # set up default spec
