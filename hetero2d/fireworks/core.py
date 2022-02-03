@@ -289,7 +289,6 @@ class GenHeteroStructuresFW(Firework):
         super(GenHeteroStructuresFW, self).__init__(t, spec=spec, parents=parents,
                                                     name=fw_name, **kwargs)
 
-
 class HeteroStructuresFW(Firework):
     def __init__(self, spec, structure, name=None, transformation=None,
                  vasp_input_set=None, user_incar_settings=None,
@@ -378,7 +377,6 @@ class HeteroStructuresFW(Firework):
         super(HeteroStructuresFW, self).__init__(t, spec=spec, parents=parents,
                                                  name=fw_name, **kwargs)
 
-
 class ElectronicFW(Firework):
     def __init__(self, structure, name="Electronic", dedos=0.05, grid_density=0.03,
             tags={}, dos=True, bader=True, cdd=False, parents=None, prev_calc_dir=None,
@@ -422,7 +420,7 @@ class ElectronicFW(Firework):
                 as inputs in this FW. This dictionary allows a user to modify the
                 default settings of the input set. Valid keys are force_gamma,
                 small_gap_multiply, nbands_factor, dos_around_fermi, slurm_npar,
-                and **kwargs.
+                auto_dipole, and **kwargs.
             **kwargs: Other kwargs that are passed to Firework.__init__.
         """
         fw_name = "{}-{}".format(structure.composition.reduced_formula, name)

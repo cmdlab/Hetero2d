@@ -196,10 +196,9 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
         # enforce tags for NonSCF calcs: ICHARG should be 11
         incar.update({"IBRION": -1, "ISTART": 1, "LWAVE": False, "NSW": 0, "ISYM": 0,
-                      "ICHARG": 11})
+                      "ICHARG": 11, "AMIN": 0.01})
         incar.update(self.kwargs.get("user_incar_settings", {}))
         return incar
-
 
     @property
     def kpoints(self):
@@ -211,8 +210,9 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
     @classmethod
     def from_prev_calc(cls, prev_calc_dir, dedos=0.05, grid_density=0.03,
-                       dos=True, bader=True, cdd=False, small_gap_multiply=None, 
-                       nbands_factor=1, dos_around_fermi=[4,6], **kwargs):
+                       dos=True, bader=True, cdd=False, small_gap_multiply=None,
+                       nbands_factor=1, dos_around_fermi=[4,6], auto_dipole=False,
+                       **kwargs):
         """
         Generate a set of Vasp input files for ElectronicFW calculations from a
         directory of previous directory.
@@ -223,7 +223,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
 
         Other Parameters:
             dedos (float): Automatically set nedos using the total energy range
-                which will be divided by the energy step dedos. Default 0.05 eV.                
+                which will be divided by the energy step dedos. Default 0.05 eV.
             grid_density (float): Distance between grid points for the NGXF,Y,Z grids.
                 Defaults to 0.03 Angs; NGXF,Y,Z are ~2x > default. For charge 
                 density difference calculations the parent grid density is used for all
@@ -241,6 +241,8 @@ class CMDLElectronicSet(CMDLRelaxSet):
                 calculated around the fermi level. Default range is [efermi-4, efermi+6].
                 If you want a different range supply a list i.e. [4,6] or False to compute
                 the entire dos range.
+            auto_dipole (bool): Whether to set dipole corrections. Defaults to
+                False.
             **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar
                 and structure which are determined from the prev_calc_dir.
         """
@@ -261,6 +263,15 @@ class CMDLElectronicSet(CMDLRelaxSet):
         # set nbands factor
         nbands = int(np.ceil(vasprun.parameters["NBANDS"] * nbands_factor))
         incar.update({"ISPIN": ispin, "NBANDS": nbands})
+
+        # set dipole corrections
+        if auto_dipole:
+            weights = [s.species_and_occu.weight for s in structure]
+            center_of_mass = np.average(structure.frac_coords,
+                                        weights=weights, axis=0)
+            incar["IDIPOL"] = 3
+            incar["LDIPOL"] = True
+            incar["DIPOL"] = ' '.join(str(i) for i in center_of_mass)
 
         # multiply the reciprocal density if needed:
         if small_gap_multiply:
@@ -305,5 +316,3 @@ class CMDLElectronicSet(CMDLRelaxSet):
             cdd_settings = {}
 
         return cls(structure=structure, prev_incar=incar, **kwargs)
-
-

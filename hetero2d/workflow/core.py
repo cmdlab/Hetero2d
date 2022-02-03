@@ -432,7 +432,7 @@ def wf_electronic(structure, tags={}, user_additions={}, prev_calc_dir=None,
     # NONSCF CALCULATION: from previous dir
     # a basic DOS and Bader calc
     if not cdd:
-        electronic = ElectronicFW(name='NSCF: DOS and Bader: {}'.format(user_additions['unique_id']),
+        electronic = ElectronicFW(name='NSCF: {}'.format(user_additions['unique_id']),
             structure=structure,
             dedos=user_additions.get('dedos', 0.05),
             grid_density=user_additions.get('grid_density', 0.03),

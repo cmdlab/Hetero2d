@@ -4,7 +4,7 @@
 INCAR:
   ALGO: FAST
   ENCUT: 520
-  EDIFF: 1e-6
+  EDIFF: 1e-4
   EDIFFG: -0.02
   IBRION: 2
   ICHARG: 1
