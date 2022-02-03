@@ -405,8 +405,8 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
             logger.info('CDD: Updating entry with charge density difference')
             col.update_one({"_id": obj_id[0]}, {"$set": cdd_dict } )
 
-            with open('dos_dict.json', 'w') as f:
-                f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
+            with open('cdd_dict.json', 'w') as f:
+                f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
 
     # TASKDOC: Add additional information
     if additional_fields:
@@ -442,5 +442,7 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         # insert into gridfs
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
+        with open('dos_dict.json', 'w') as f:
+            f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
         logger.info('DOS inserted into GridFS.')
     conn.close()
