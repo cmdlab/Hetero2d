@@ -173,7 +173,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
         self (self): The self parameter for HeteroAnalysisToDb.
         fw_spec (dict): A dictionary containing all the information
             linked to this firework.
-        task_name (str): The name of the firework being analyzed.
+        task_label (str): The name of the firework being analyzed.
         task_collection (str): The name of the task collection you
             want to push the data to.
         additional_fields (dict): a dictionary containing additional
@@ -219,8 +219,8 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
 
     # standard database information 
     heterostructure_dict = {'compound': task_doc['formula_pretty'],
-                            'dir_name': task_doc['dir_name'], 'fw_id': fw_id, 
-                            'task_label': task_name,
+                            'dir_name': task_doc['dir_name'], 'fw_id': fw_id,
+                            'task_label': task_label,
                             'final_energy': E, 'initial_structure': init_struct.as_dict(),
                             'final_structure': final_struct.as_dict(), 'cif': cif,
                             'analysis_data': info, 
@@ -310,7 +310,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
 
     return final_struct, N, E
 
-def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
+def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
                     cdd, parse_vasp, additional_fields=None, db_file=None):
     """
     Insert a new task document into task_collection specified by db_file
@@ -320,7 +320,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
     Args:
         fw_spec (dict): A dictionary containing all the information
             linked to this firework.
-        task_name (str): The name of the firework being analyzed.
+        task_label (str): The name of the firework being analyzed.
         task_collection (str): The name of the task collection you
             want to push the data to.
         dos (bool/str): If True, parses the density of states assuming uniform
@@ -417,7 +417,7 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
     # Insert Data into Database
     if any([dos, bader, parse_vasp]):
         t_id = col.insert(electronic_dict)
-        if re.search('Combined NSCF:', loc['name']):
+        if re.search('Combined NSCF:', task_label):
             return t_id
         else:
             return None
@@ -439,4 +439,3 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
     conn.close()
-
