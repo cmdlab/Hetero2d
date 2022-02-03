@@ -143,7 +143,7 @@ class ElectronicJob(VaspJob):
             List of two jobs corresponding to an AFLOW style run.
         """
         incar_orig = Incar.from_file('INCAR')
-        incar1 = {"ICHARG": 1, "ISYM": 2, "LAECHG": False, "NEDOS": 301} 
+        incar1 = {"ICHARG": 1, "LAECHG": False, "NEDOS": 301} 
         incar2 = {key: incar_orig.get(key) for key in incar1.keys() if key in incar_orig.keys()}
         if slurm_npar:
             npar = slurm_set_npar()
