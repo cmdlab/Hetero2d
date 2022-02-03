@@ -3,7 +3,7 @@
 # Distributed under the terms of the GNU License.
 
 """
-These modules parse output from VASP runs, calculate various energetic and structural 
+These modules parse output from VASP runs, calculate various energetic and structural
 parameters and update a mongoDB with the relevant information.
 """
 
@@ -27,7 +27,7 @@ from fireworks.core.firework import FiretaskBase, FWAction
 from fireworks.utilities.fw_serializers import DATETIME_HANDLER
 from fireworks.utilities.fw_utilities import explicit_serialize
 
-from atomate.common.firetasks.glue_tasks import get_calc_loc 
+from atomate.common.firetasks.glue_tasks import get_calc_loc
 from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
 from atomate.vasp.drones import VaspDrone
 
@@ -48,34 +48,34 @@ logger = get_logger(__name__)
 @explicit_serialize
 class HeteroAnalysisToDb(FiretaskBase):
     """
-    Enter heterostructure workflow analysis into the database. Determines 
+    Enter heterostructure workflow analysis into the database. Determines
     what data to enter into the database based on what calculation was
     performed.
 
-    Args: 
+    Args:
         db_file (str): Path to file containing the database credentials.
             Supports env_chk. Default: write data to JSON file.
         task_label (str): The task_label (firework name) automatically generated
             by the FireWorks in Hetero2d. Used to determine what type of calculation
             is being parsed.
-        
+
     Optional params:
         calc_dir (str): Path to dir (on current filesystem) that contains VASP
             output files. Default: use current working directory.
         calc_loc (str/bool): If True will set most recent calc_loc. If str
             will search calc_locs for the matching name (most recent).
         dos (bool/str): If True, parses the density of states assuming uniform
-            mode. Set to line if you are parsing bandstructures. Data stored 
+            mode. Set to line if you are parsing bandstructures. Data stored
             in GridFS. Default set to False.
         bader (bool): If True, bader analysis is performed for the current
-            directory. The bader.exe must exist on the path. Default set to 
+            directory. The bader.exe must exist on the path. Default set to
             False.
-        cdd (bool): If True, the charge density difference is performed. Default 
+        cdd (bool): If True, the charge density difference is performed. Default
             set to False.
         Adsorption_Energy (bool): If True, the adsorption formation energy
             analysis is calculated for the run the results are stored with the
             structure in the database under the Adsorption_Energy key.
-        Binding_Energy (bool): If True, the binding energy will be calculated 
+        Binding_Energy (bool): If True, the binding energy will be calculated
             and stored in the database under the Binding Energy key.
         Formation_Energy (bool): If True, the formation energy will be calculated
             and stored with structure in the database under the Formation_Energy
@@ -83,7 +83,7 @@ class HeteroAnalysisToDb(FiretaskBase):
         additional_fields (dict): Dict of additional fields to add to the database.
     """
     required_params = ["db_file", "task_label"]
-    optional_params = ["dos", "bader", "cdd", "Adsorption_Energy", "Binding_Energy", 
+    optional_params = ["dos", "bader", "cdd", "Adsorption_Energy", "Binding_Energy",
             "Formation_Energy", "additional_fields"]
 
     def run_task(self, fw_spec):
@@ -125,7 +125,7 @@ class HeteroAnalysisToDb(FiretaskBase):
         #      2D Structure Optimization Analysis       #
         if re.search("[^3D]2D Structure Optimization", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 2D")
-            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec, task_label, '2D', 
+            struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec, task_label, '2D',
                                                   additional_fields, db_file)
             stored_data["analysis_info"].update({'N_2d': struct_2D.num_sites,
                                                  'E_2d': E_2D})
@@ -135,7 +135,7 @@ class HeteroAnalysisToDb(FiretaskBase):
         #     3D2D Structure Optimization Analysis      #
         if re.search("3D2D Structure Optimization", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 3D2D")
-            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec, task_label, 
+            struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec, task_label,
                                                         '3D2D', additional_fields, db_file)
             stored_data["analysis_info"].update({'N_3d2d': N_3D2D,
                                                  'E_3d2d': E_3D2D})
@@ -145,25 +145,24 @@ class HeteroAnalysisToDb(FiretaskBase):
         #     2d on substrate Optimization Analysis     #
         if re.search("Heterostructure Optimization:", task_label):
             logger.info("PASSING PARAMETERS TO TASKDOC: 2D_on_Substrate")
-            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec, task_label, 
-                                                           "2D_on_Substrate", 
+            struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec, task_label,
+                                                           "2D_on_Substrate",
                                                            additional_fields,
                                                            db_file)
 
-        ##################################################        
+        ##################################################
         #      Density of States and Bader Analysis      #
         dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
         if True in [dos, bader, cdd]:
             logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
             parse_vasp = False if cdd else True
-            obj_id = DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", dos, 
+            obj_id = DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", dos,
                 bader, cdd, parse_vasp, additional_fields, db_file)
             stored_data = {'obj_id': obj_id} if obj_id else {}
             mod_spec = [{'_push': {'obj_id': {obj_id}}}]
         return FWAction(stored_data=stored_data, mod_spec=mod_spec)
 
-
-def HeteroTaskDoc(self, fw_spec, task_name, task_collection, 
+def HeteroTaskDoc(self, fw_spec, task_label, task_collection,
                   additional_fields=None, db_file=None):
     """
     Insert a new doc for the 2d, 3d2d, bulk, substrate slab, 2d-subs
@@ -209,7 +208,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
     final_struct = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
     # get the actual initial POSCAR for database
     f = glob.glob("POSCAR.orig*")[0]
-    # this takes the poscar and preps it for database doc 
+    # this takes the poscar and preps it for database doc
     init_struct = Structure.from_file(f, False)
     cif = final_struct.to(fmt='cif')
     N = final_struct.num_sites
@@ -217,13 +216,13 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
     info = {}
     [info.update(element) for element in fw_spec.get('analysis_info', [{}])]
 
-    # standard database information 
+    # standard database information
     heterostructure_dict = {'compound': task_doc['formula_pretty'],
                             'dir_name': task_doc['dir_name'], 'fw_id': fw_id,
                             'task_label': task_label,
                             'final_energy': E, 'initial_structure': init_struct.as_dict(),
                             'final_structure': final_struct.as_dict(), 'cif': cif,
-                            'analysis_data': info, 
+                            'analysis_data': info,
                             "metadata": get_meta_from_structure(structure=final_struct)}
 
     ##########################################
@@ -242,7 +241,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
 
     # additional energetic information
     # NOTE: never pull the *_Energy tags from fw_spec only
-    # pull them from self. 
+    # pull them from self.
     Formation_Energy = self.get("Formation_Energy", None)
     Binding_Energy = self.get("Binding_Energy", None)
     Adsorption_Energy = self.get("Adsorption_Energy", None)
@@ -262,7 +261,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
         if not isinstance(struct_sub, Structure):
             struct_sub = Structure.from_dict(struct_sub)
         N_iface = final_struct.num_sites
-        # calc E_ads 
+        # calc E_ads
         align_info = heterostructure_dict['tags']['alignment_info']
         n_2d, n_sub = align_info['fu_2d'], align_info['fu_sub']
         E_bind = (n_2d * info['E_2d'] + n_sub * info['E_sub'] - E) / (n_2d * info['N_2d'])
@@ -281,7 +280,7 @@ def HeteroTaskDoc(self, fw_spec, task_name, task_collection,
         if not isinstance(struct_sub, Structure):
             struct_sub = Structure.from_dict(struct_sub)
         N_iface = final_struct.num_sites
-        # calc E_ads 
+        # calc E_ads
         align_info = heterostructure_dict['tags']['alignment_info']
         n_2d, n_sub = align_info['fu_2d'], align_info['fu_sub']
         E_ads = E_form - (n_2d * info['E_2d'] + n_sub * info['E_sub'] - E) / (n_2d * info['N_2d'])
@@ -324,20 +323,23 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         task_collection (str): The name of the task collection you
             want to push the data to.
         dos (bool/str): If True, parses the density of states assuming uniform
-            mode. Set to line if you are parsing bandstructures. Data stored 
+            mode. Set to line if you are parsing bandstructures. Data stored
             in GridFS. Default set to False.
         bader (bool): If True, bader analysis is performed for the current
-            directory. The bader.exe must exist on the path. Default set to 
+            directory. The bader.exe must exist on the path. Default set to
             False.
-        cdd (bool): If True, the charge density difference is performed. Default 
+        cdd (bool): If True, the charge density difference is performed. Default
             set to False.
-        parse_vasp (bool): If True, parses the vasprun to add extra information 
+        parse_vasp (bool): If True, parses the vasprun to add extra information
             to the database.
         additional_fields (dict): A dictionary containing additional
             information you want added to the database.
         db_file (str): a string representation for the location of
             the database file.
     """
+    with open('fw_spec.json', 'w') as f:
+        f.write(json.dumps(fw_spec, default=DATETIME_HANDLER))
+
     # get directory info
     calc_dir = os.getcwd()
     if "calc_dir" in self: # passed calc dir
@@ -345,20 +347,19 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
     elif self.get("calc_loc"): # find the calc_loc in fw_spec
         calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
 
-    store_doc = {} # store data doc
-
-    # connect to database & insert electronic_dict 
+    # connect to database & insert electronic_dict
     conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
     db = conn[database]
     col = db[task_collection]
-    
-    # TASKDOC: Parse Vasp run  
+
+    store_doc = {} # store data doc
+    # TASKDOC: Parse Vasp run
     if parse_vasp:
         logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
         drone = VaspDrone()
         task_doc = drone.assimilate(calc_dir)
         vrun, outcar = get_vasprun_outcar('.')
-        doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at', 
+        doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at',
             'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements',
             'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 'output']
         store_doc = {key: task_doc[key] for key in doc_keys}
@@ -377,11 +378,11 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         logger.info("Processing Bader")
         ba = bader_analysis_from_path(path=calc_dir)
         structure = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
-        potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))   
-        nelectrons = {p.element: p.nelectrons for p in potcar}                    
-        ba['species'] = [s.species_string for s in structure.sites]               
-        ba['nelectrons'] = [nelectrons[s] for s in ba['species']]                 
-        ba['zcoords'] = [s.coords[2] for s in structure.sites]  
+        potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))
+        nelectrons = {p.element: p.nelectrons for p in potcar}
+        ba['species'] = [s.species_string for s in structure.sites]
+        ba['nelectrons'] = [nelectrons[s] for s in ba['species']]
+        ba['zcoords'] = [s.coords[2] for s in structure.sites]
         store_doc.update(ba)
 
     # TASKDOC: Charge Density Difference processing
@@ -391,8 +392,8 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         iso1_path = [loc['path'] for loc in calc_locs if re.search('ISO 1 NSCF:', loc['name'])][0]
         iso2_path = [loc['path'] for loc in calc_locs if re.search('ISO 2 NSCF:', loc['name'])][0]
         comb_path = [loc['path'] for loc in calc_locs if re.search('Combined NSCF:', loc['name'])][0]
-        decompress(glob.glob(os.path.join(iso1_path, "CHGCAR*"))[0], 'CHGCAR_1') 
-        decompress(glob.glob(os.path.join(iso2_path, "CHGCAR*"))[0], 'CHGCAR_2')        
+        decompress(glob.glob(os.path.join(iso1_path, "CHGCAR*"))[0], 'CHGCAR_1')
+        decompress(glob.glob(os.path.join(iso2_path, "CHGCAR*"))[0], 'CHGCAR_2')
         decompress(glob.glob(os.path.join(comb_path, "CHGCAR*"))[0], 'CHGCAR_comb')
         chg1, chg2, chg_comb = vtotav('CHGCAR_1'), vtotav('CHGCAR_2'), vtotav('CHGCAR_comb')
         chg_cdd = list(np.array(chg_comb['chg_density']) - \
@@ -402,14 +403,17 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         obj_id = fw_spec.get('obj_id', None)
         if obj_id:
             logger.info('CDD: Updating entry with charge density difference')
-            col.update_one({"_id": obj_id}, {"$set": cdd_dict } )
-   
+            col.update_one({"_id": obj_id[0]}, {"$set": cdd_dict } )
+
+            with open('dos_dict.json', 'w') as f:
+                f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
+
     # TASKDOC: Add additional information
     if additional_fields:
         for key, value in additional_fields.items():
             store_doc[key] = value
     # sanitize database info
-    electronic_dict = jsanitize(store_doc) 
+    electronic_dict = jsanitize(store_doc)
     # dump electronic properties to directory
     with open('electronic_property.json', 'w') as f:
         f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
@@ -423,7 +427,7 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
             return None
     ## Separately add the dos to DB ##
     if dos:
-        # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 
+        # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with
         # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
         # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
 
@@ -438,4 +442,5 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         # insert into gridfs
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
+        logger.info('DOS inserted into GridFS.')
     conn.close()
