@@ -402,9 +402,10 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
         obj_id = fw_spec.get('obj_id', None)
         if obj_id:
-            logger.info('CDD: Updating entry with charge density difference')
-            col.update_one({"_id": obj_id[0]}, {"$set": cdd_dict } )
-
+            logger.info('CDD: Updating {} with charge density difference'.format(obj_id[0]))
+            col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
+        else:
+            logger.info('CDD: No ObjectId found.')
             with open('cdd_dict.json', 'w') as f:
                 f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
 
@@ -421,10 +422,7 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
     # Insert Data into Database
     if any([dos, bader, parse_vasp]):
         t_id = col.insert(electronic_dict)
-        if re.search('Combined NSCF:', task_label):
-            return t_id
-        else:
-            return None
+
     ## Separately add the dos to DB ##
     if dos:
         # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with
@@ -445,4 +443,10 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         with open('dos_dict.json', 'w') as f:
             f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
         logger.info('DOS inserted into GridFS.')
+
+    # return ObjectId if the Combined system
+    if re.search('Combined NSCF:', task_label):
+        return str(t_id)
+    else:
+        return None
     conn.close()
