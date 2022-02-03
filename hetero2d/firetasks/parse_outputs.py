@@ -417,7 +417,10 @@ def DosBaderTaskDoc(self, fw_spec, task_name, task_collection, dos, bader,
     # Insert Data into Database
     if any([dos, bader, parse_vasp]):
         t_id = col.insert(electronic_dict)
-        return t_id
+        if re.search('Combined NSCF:', loc['name']):
+            return t_id
+        else:
+            return None
     ## Separately add the dos to DB ##
     if dos:
         # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with 

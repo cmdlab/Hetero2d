@@ -38,7 +38,7 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
-
+@explicit_serialize
 class ElectronicJob(VaspJob):
     """
     A subclass of VaspJob created to run a double kpoint run for calculating bader
