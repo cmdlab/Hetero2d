@@ -15,7 +15,7 @@ from monty.serialization import loadfn
 
 from pymatgen import Structure
 from pymatgen.io.vasp.inputs import Incar, Kpoints, Poscar, Potcar
-from pymatgen.io.vasp.sets import DictSet, get_vasprun_outcar, get_structure_from_prev_run
+from pymatgen.io.vasp.sets import DictSet, get_vasprun_outcar
 
 
 __author__ = "Tara M. Boland"
@@ -249,7 +249,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
         vasprun, outcar = get_vasprun_outcar(prev_calc_dir)
 
         incar = vasprun.incar
-        structure = get_structure_from_prev_run(vasprun, outcar) # Magmom-decorated struct
+        structure = vasprun.final_structure
 
         # Turn off spin when magmom for every site is smaller than 0.02.
         if outcar and outcar.magnetization:
