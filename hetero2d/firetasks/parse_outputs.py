@@ -368,7 +368,8 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
     if dos:
         logger.info("Processing DOS")
         try:
-            dos_dict = vrun.complete_dos.get_element_dos()
+            # element projected dos from complete dos
+            dos_dict = vrun.complete_dos.as_dict()['atom_dos']
             store_doc['get_dos'] = True
         except Exception:
             raise ValueError("No valid dos data exist")
@@ -425,14 +426,16 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
     if any([dos, bader, parse_vasp]):
         t_id = col.insert(electronic_dict)
 
-    ## Separately add the dos to DB ##
+    ## Separately add the dos to GridFS in DB ##
     if dos:
         # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with
         # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
         # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
+        with open('dos_dict.json', 'w') as f:
+            f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
 
         # Putting task id in the metadata subdocument as per mongo specs
-        m_data = {"compression": "zlib"}
+        m_data = {"compression": "zlib", "task_label": task_label}
         # always perform the string conversion when inserting directly to gridfs
         d = json.dumps(dos_dict, cls=MontyEncoder)
         d = zlib.compress(d.encode(), True)
@@ -442,8 +445,6 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         # insert into gridfs
         col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
-        with open('dos_dict.json', 'w') as f:
-            f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
         logger.info('DOS inserted into GridFS.')
 
     # return ObjectId if the Combined system
