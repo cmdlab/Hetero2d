@@ -87,7 +87,7 @@ class HeteroAnalysisToDb(FiretaskBase):
             "Formation_Energy", "additional_fields"]
 
     def run_task(self, fw_spec):
-        logger.info("Starting HeteroAnalysisToDb: collecting information.")
+        logger.info("Launching HeteroAnalysisToDb")
         #db_file = self.get('db_file', None) or env_chk('>>db_file<<', fw_spec)
         db_file = env_chk('>>db_file<<', fw_spec)
         task_label = self.get("task_label", None) # get task_label
@@ -97,24 +97,23 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         # define input to push to mod_spec and stored data
         if re.search("Optimization", task_label):
-            logger.info("Cleaning up TaskDoc")
+            logger.info("Processing TaskDoc for Optimization Run.")
             stored_data, mod_spec = {'analysis_info': {}}, [{'_push': {'analysis_info': {}}}]
             info = {}
             [info.update(element) for element in fw_spec.get('analysis_info', [{}])]
         else:
             stored_data, mod_spec = None, None
 
-        print('### Parsing Calculation', task_label)
         #      Bulk Substrate Optimization Analysis     #
         if re.search("Bulk Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: Bulk")
+            logger.info("PASSING PARAMETERS TO TASKDOC for Bulk")
             struct_bulk, N_bulk, E_bulk = HeteroTaskDoc(self, fw_spec,
                                                         task_label, 'Bulk', additional_fields,
                                                         db_file)
 
         # Oriented Substrate Slab Optimization Analysis #
         if re.search("Slab Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: Slab")
+            logger.info("PASSING PARAMETERS TO TASKDOC for Slab")
             struct_sub, N_sub, E_sub = HeteroTaskDoc(self, fw_spec,
                                                      task_label, 'Substrate', additional_fields,
                                                      db_file)
@@ -124,7 +123,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         #      2D Structure Optimization Analysis       #
         if re.search("[^3D]2D Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 2D")
+            logger.info("PASSING PARAMETERS TO TASKDOC for 2D")
             struct_2D, N_2D, E_2D = HeteroTaskDoc(self, fw_spec, task_label, '2D',
                                                   additional_fields, db_file)
             stored_data["analysis_info"].update({'N_2d': struct_2D.num_sites,
@@ -134,7 +133,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         #     3D2D Structure Optimization Analysis      #
         if re.search("3D2D Structure Optimization", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 3D2D")
+            logger.info("PASSING PARAMETERS TO TASKDOC for 3D2D")
             struct_3D2D, N_3D2D, E_3D2D = HeteroTaskDoc(self, fw_spec, task_label,
                                                         '3D2D', additional_fields, db_file)
             stored_data["analysis_info"].update({'N_3d2d': N_3D2D,
@@ -144,7 +143,7 @@ class HeteroAnalysisToDb(FiretaskBase):
 
         #     2d on substrate Optimization Analysis     #
         if re.search("Heterostructure Optimization:", task_label):
-            logger.info("PASSING PARAMETERS TO TASKDOC: 2D_on_Substrate")
+            logger.info("PASSING PARAMETERS TO TASKDOC for 2D_on_Substrate")
             struct_2Dsub, N_2Dsub, E_2Dsub = HeteroTaskDoc(self, fw_spec, task_label,
                                                            "2D_on_Substrate",
                                                            additional_fields,
@@ -154,7 +153,7 @@ class HeteroAnalysisToDb(FiretaskBase):
         #      Density of States and Bader Analysis      #
         dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
         if True in [dos, bader, cdd]:
-            logger.info("PASSING PARAMETERS TO TASKDOC: Dos and Bader")
+            logger.info("PASSING PARAMETERS TO TASKDOC for Electronic Property")
             parse_vasp = False if cdd else True
             obj_id = DosBaderTaskDoc(self, fw_spec, task_label, "DosBader", dos,
                 bader, cdd, parse_vasp, additional_fields, db_file)
@@ -184,7 +183,6 @@ def HeteroTaskDoc(self, fw_spec, task_label, task_collection,
     Returns:
         Analyzed structure, number of sites, and energy
     """
-    dumpfn(fw_spec, 'fw_spec.json')
 
     # get directory info
     calc_dir = os.getcwd()
@@ -306,7 +304,6 @@ def HeteroTaskDoc(self, fw_spec, task_label, task_collection,
         col = db[task_collection]
         col.insert_one(heterostructure_dict)
         conn.close()
-    dumpfn(heterostructure_dict, 'heterostructure_doc.json')
 
     return final_struct, N, E
 
@@ -338,9 +335,6 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         db_file (str): a string representation for the location of
             the database file.
     """
-    with open('fw_spec.json', 'w') as f:
-        f.write(json.dumps(fw_spec, default=DATETIME_HANDLER))
-
     # get directory info
     calc_dir = os.getcwd()
     if "calc_dir" in self: # passed calc dir
@@ -353,8 +347,8 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
     db = conn[database]
     col = db[task_collection]
 
-    store_doc = {} # store data doc
-    # TASKDOC: Parse Vasp run
+    store_doc, cdd_dict, dos_dict = {}, {}, {} # store data doc
+    # TASKDOC: Parse Vasprun
     if parse_vasp:
         logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
         drone = VaspDrone()
@@ -405,35 +399,30 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         obj_id = fw_spec.get('obj_id', None)
         if obj_id:
             logger.info('CDD: Updating {} with charge density difference'.format(obj_id[0]))
-            with open('cdd_dict.json', 'w') as f:
-                f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
-            col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
+            try:
+                col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
+            except Exception:
+                raise ValueError('Failed to insert CDD into previous task_doc')
         else:
-            logger.info('CDD: No ObjectId found.')
+            logger.info('### WARNING CDD NOT INSERTED INTO PREVIOUS TASK DOC: No ObjectId found.')
             with open('cdd_dict.json', 'w') as f:
                 f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
 
-    # TASKDOC: Add additional information
+    # TASKDOC: Add additional information to task doc
     if additional_fields:
         for key, value in additional_fields.items():
             store_doc[key] = value
     # sanitize database info
     electronic_dict = jsanitize(store_doc)
-    # dump electronic properties to directory
-    with open('electronic_property.json', 'w') as f:
-        f.write(json.dumps(electronic_dict, default=DATETIME_HANDLER))
-
     # Insert Data into Database
     if any([dos, bader, parse_vasp]):
         t_id = col.insert(electronic_dict)
 
-    ## Separately add the dos to GridFS in DB ##
+    ## Separately upload the DOS to GridFS in DB ##
     if dos:
         # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with
         # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
-        # DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
-        with open('dos_dict.json', 'w') as f:
-            f.write(json.dumps(dos_dict, default=DATETIME_HANDLER))
+        # LOOKUP: DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
 
         # Putting task id in the metadata subdocument as per mongo specs
         m_data = {"compression": "zlib", "task_label": task_label}
@@ -448,6 +437,11 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
         logger.info('DOS inserted into GridFS.')
 
+    # dump analysis to directory in case something happens. just re-upload this
+    # file to the db. just in case.
+    analysis = {**cdd_dict, **dos_dict, **electronic_dict}
+    with open('electronic_property.json', 'w') as f:
+        f.write(json.dumps(analysis, default=DATETIME_HANDLER))
     # return ObjectId if the Combined system
     if re.search('Combined NSCF:', task_label):
         return str(t_id)
