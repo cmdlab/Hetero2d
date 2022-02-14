@@ -484,13 +484,20 @@ def slurm_set_npar():
     # fails on all slurm systems
     slurm_keys = list(os.environ.keys())
     ncore_keys = [ [key for key in slurm_keys if re.search(match, key) ] 
-                            for match in ['TASKS','NSLOTS']]
+                            for match in ['TASKS','NSLOTS','CPU','NODE']]
     ncore_keys = list(np.unique(sum(ncore_keys, [])))
-    dumpfn(slurm_keys, 'slurm_keys.json')
+
+    slurm_dict = {key:os.environ[key] for key in ncore_keys}
+    dumpfn(slurm_dict, 'slurm_keys.json')
+
     for key in ncore_keys:
         if re.search('SLURM_NTASKS',key):
             ncores = int(os.environ[key])
             break
+        #elif re.search('SLURM_JOB_CPUS_ON_NODE',key):
+        #    
+        #    ncores = int(os.environ[key])
+        #    break
         elif re.search('NSLOTS',key):
             ncores = int(os.environ[key]) 
             break

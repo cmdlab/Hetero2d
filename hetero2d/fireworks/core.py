@@ -425,7 +425,7 @@ class ElectronicFW(Firework):
         """
         fw_name = "{}-{}".format(structure.composition.reduced_formula, name)
         electronic_set_overrides = electronic_set_overrides or {}
-        slurm_npar = electronic_set_overrides.pop('slurm_npar', False)
+        slurm_npar = electronic_set_overrides.get('slurm_npar', False)
 
         t = []
         if prev_calc_dir:
