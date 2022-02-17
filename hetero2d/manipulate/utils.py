@@ -7,20 +7,22 @@ Useful utilities to view, analyze, and change structures. Some functions are not
 the user. 
 """
 
-import re, shlex, os, sys, json, gzip, numpy as np, math, pymongo
+import re, shlex, os, sys, json, gzip, numpy as np, math, pymongo, gridfs, zlib
 from copy import deepcopy
+from bson import ObjectId
 from monty.serialization import loadfn, dumpfn
 
 from ase import Atom
 from ase.visualize import view
 from ase.calculators.vasp import VaspChargeDensity
 
-from pymatgen import Structure, Lattice, Specie
+from pymatgen import Structure, Lattice, Specie, Element
 from pymatgen.io.ase import AseAtomsAdaptor
 from pymatgen.core.surface import Slab
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+from pymatgen.electronic_structure.dos import Dos
 
 from atomate.vasp.powerups import get_fws_and_tasks
 
@@ -71,13 +73,40 @@ def get_mongo_client(db_file, db_type=None):
         client = pymongo.MongoClient(connection_url)
     return client, database_name
 
+def get_dos(client, taskdoc):
+    '''
+    Uses the object_id from the task document to search for the dos in gridfs
+    and loads the DOS object into a PMG DOS object. The key get_dos must be
+    true in the task doc or the object does not exist in the gridfs.
+
+    Args:
+        client (MongoClient Object): The MongoClient connected to the database
+            you are extracting information from to get the dos.
+        taskdoc (dict): The task doc you want to get the DOS for.
+
+    Returns:
+        DOS obect
+    '''
+    # TASKDOC LOOKUP: DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
+    fs_id = ObjectId(taskdoc['_id'])
+
+    # connect to dos_fs
+    fs = gridfs.GridFS(client, 'dos_fs')
+    bs_json = zlib.decompress(fs.get(fs_id).read())
+    obj_dict = json.loads(bs_json.decode())
+
+    dos_obj = CompleteDos.from_dict(obj_dict)
+    #dos_obj = { Element(key): Dos.from_dict(value) for key, value in obj_dict.items()}
+    return dos_obj
+
 ############################################
 ### Post/Pre processing helper functions ###
 def vtotav(chgcar_file, axis='z'):
     '''
-    A script which averages a CHGCAR or LOCPOT file in one axis to 
-    make a 1D curve. User must specify filename and axis on command 
-    line. Depends on ase
+    A script which averages a CHGCAR or LOCPOT file in one axis to
+    make a 1D curve. User must specify filename and axis on command
+    line. Depends on ase (converted to 3.6 from ase's vtotav.py
+    python 2.7).
 
     Args:
         chgcar (str): Path to the VASP CHGCAR file

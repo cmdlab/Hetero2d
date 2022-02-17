@@ -364,7 +364,7 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         logger.info("Processing DOS")
         try:
             # element projected dos from complete dos
-            dos_dict = vrun.complete_dos.as_dict()['atom_dos']
+            dos_dict = vrun.complete_dos.as_dict() #['atom_dos'] featurizers generated CompleteDos
             store_doc['get_dos'] = True
         except Exception:
             raise ValueError("No valid dos data exist")

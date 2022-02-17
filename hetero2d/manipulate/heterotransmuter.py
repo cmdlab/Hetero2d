@@ -316,7 +316,9 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     unique (Wyckoff) sites of the mat2d and substrate. The unique sites are iteratively matched 
     between the mat2d and substrate stacking the unique sites on top of each other separated by the
     separation distance parameter. This subsequently generates all possible 2d/substrate heterostructure
-    configurations stacked over high symmetry points. All unique structures are returned.
+    configurations stacked over high symmetry points. All unique structures are returned. To identify
+    the wyckoff sites stacked on top of each other the name is attached to each structure under
+    site_properties.
 
     Args:
         mat2d (Structure): Lattice and symmetry-matched 2D material 
