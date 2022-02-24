@@ -9,7 +9,7 @@ parameters and update a mongoDB with the relevant information.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
-import glob, os, re, gridfs, json, zlib
+import glob, os, re, gridfs, json, zlib, traceback
 import numpy as np
 from bson import ObjectId
 
@@ -34,8 +34,8 @@ from atomate.vasp.drones import VaspDrone
 from hetero2d.manipulate.utils import tag_iface, get_mongo_client, get_FWjson
 from hetero2d.manipulate.utils import vtotav, decompress
 
-bader_exe_exists = which("bader") or which("bader.exe")
-
+#bader_exe_exists = which("bader") or which("bader.exe")
+bader_exe_exists = '/home/tboland1/anaconda3/envs/cms/bin/bader'
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"
@@ -88,12 +88,18 @@ class HeteroAnalysisToDb(FiretaskBase):
 
     def run_task(self, fw_spec):
         logger.info("Launching HeteroAnalysisToDb")
-        #db_file = self.get('db_file', None) or env_chk('>>db_file<<', fw_spec)
+        #try:
         db_file = env_chk('>>db_file<<', fw_spec)
         task_label = self.get("task_label", None) # get task_label
-
         # determine what data to insert into the database
         additional_fields = self.get("additional_fields", None) # update additional_fields
+        dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
+        ## remove this after manual updates are done
+        #except:
+        #    db_file = self.get('db_file', None) or env_chk('>>db_file<<', fw_spec)
+        #    task_label = self.get("task_label", None) # get task_label
+        #    additional_fields = self.get("additional_fields", None) # update additional_fields
+        #    dos, bader, cdd = [additional_fields.get(i, False) for i in ['dos','bader','cdd']]
 
         # define input to push to mod_spec and stored data
         if re.search("Optimization", task_label):
@@ -149,9 +155,7 @@ class HeteroAnalysisToDb(FiretaskBase):
                                                            additional_fields,
                                                            db_file)
 
-        ##################################################
         #      Density of States and Bader Analysis      #
-        dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
         if True in [dos, bader, cdd]:
             logger.info("PASSING PARAMETERS TO TASKDOC for Electronic Property")
             parse_vasp = False if cdd else True
@@ -183,7 +187,6 @@ def HeteroTaskDoc(self, fw_spec, task_label, task_collection,
     Returns:
         Analyzed structure, number of sites, and energy
     """
-
     # get directory info
     calc_dir = os.getcwd()
     if "calc_dir" in self:
@@ -336,18 +339,23 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
             the database file.
     """
     # get directory info
-    calc_dir = os.getcwd()
     if "calc_dir" in self: # passed calc dir
         calc_dir = self["calc_dir"]
     elif self.get("calc_loc"): # find the calc_loc in fw_spec
         calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
 
-    # connect to database & insert electronic_dict
-    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
-    db = conn[database]
-    col = db[task_collection]
+    ## delete this after done updating bader
+    #elif fw_spec.get('_launch_dir'):
+    #    #print(fw_spec['_launch_dir'])
+    #    calc_dir = fw_spec['_launch_dir']
+    #elif fw_spec.get('launches'):
+    #    if fw_spec['launches'][0].get('launch_dir'):
+    #        #print(fw_spec['launches'][0]['launch_dir'])
+    #        calc_dir = fw_spec['launches'][0]['launch_dir']
 
+    # the main taskdoc, the cdd taskdoc, and the dos taskdoc
     store_doc, cdd_dict, dos_dict = {}, {}, {} # store data doc
+    store_doc.update({'fw_id': get_FWjson()['fw_id']})  # get fw_id
     # TASKDOC: Parse Vasprun
     if parse_vasp:
         logger.info("PARSING DIRECTORY with VaspDrone: {}".format(calc_dir))
@@ -355,23 +363,24 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         task_doc = drone.assimilate(calc_dir)
         vrun, outcar = get_vasprun_outcar('.')
         doc_keys = ['dir_name', 'run_stats', 'chemsys', 'formula_reduced_abc', 'completed_at',
-            'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 'elements',
-            'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 'output']
-        store_doc = {key: task_doc[key] for key in doc_keys}
+            'nsites', 'composition_unit_cell', 'composition_reduced', 'formula_pretty', 
+            'elements', 'nelements', 'input', 'last_updated', 'custodian', 'orig_inputs', 
+            'output']
+        store_doc.update({key: task_doc[key] for key in doc_keys})
 
     # TASKDOC: DOS processing
     if dos:
         logger.info("Processing DOS")
         try:
             # element projected dos from complete dos
-            dos_dict = vrun.complete_dos.as_dict() #['atom_dos'] featurizers generated CompleteDos
+            dos_dict = vrun.complete_dos.as_dict() 
             store_doc['get_dos'] = True
         except Exception:
             raise ValueError("No valid dos data exist")
 
     # TASKDOC: Bader processing
     if bader:
-        logger.info("Processing Bader")
+        logger.info("Processing Bader. Executable path: {}".format(str(bader_exe_exists)))
         ba = bader_analysis_from_path(path=calc_dir)
         structure = Structure.from_dict(task_doc["calcs_reversed"][0]["output"]['structure'])
         potcar = Potcar.from_file(filename=os.path.join(calc_dir, 'POTCAR.gz'))
@@ -381,64 +390,100 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         ba['zcoords'] = [s.coords[2] for s in structure.sites]
         store_doc.update(ba)
 
+    # TASKDOC: Z-projected Charge Density
+     if re.search('NSCF:': task_label) and cdd != True:
+        logger.info("Computing Z-projected Charge Density: {}".format(calc_dir))
+        try: 
+            # compute the projected charge density difference, assume uncompressed
+            store_data.update({'z_proj_chg': vtotav('CHGCAR')})
+        except:
+            # decompress CHGCAR
+            decompress(glob.glob("CHGCAR*")[0], 'CHGCAR_projz')
+            # compute the projected charge density difference
+            store_data.update({'z_proj_chg': vtotav('CHGCAR_projz')})
+            os.remove('CHGCAR_projz')
+   
     # TASKDOC: Charge Density Difference processing
     if cdd:
         logger.info("Computing Charge Density Difference: {}".format(calc_dir))
         calc_locs = fw_spec['calc_locs']
+
+        # get the path for each of the structures for CDD
         iso1_path = [loc['path'] for loc in calc_locs if re.search('ISO 1 NSCF:', loc['name'])][0]
         iso2_path = [loc['path'] for loc in calc_locs if re.search('ISO 2 NSCF:', loc['name'])][0]
         comb_path = [loc['path'] for loc in calc_locs if re.search('Combined NSCF:', loc['name'])][0]
+        # decompress the files
         decompress(glob.glob(os.path.join(iso1_path, "CHGCAR*"))[0], 'CHGCAR_1')
         decompress(glob.glob(os.path.join(iso2_path, "CHGCAR*"))[0], 'CHGCAR_2')
         decompress(glob.glob(os.path.join(comb_path, "CHGCAR*"))[0], 'CHGCAR_comb')
+
+        # compute the projected charge density difference
         chg1, chg2, chg_comb = vtotav('CHGCAR_1'), vtotav('CHGCAR_2'), vtotav('CHGCAR_comb')
         chg_cdd = list(np.array(chg_comb['chg_density']) - \
                                (np.array(chg1['chg_density']) + np.array(chg2['chg_density'])))
-        cdd_dict = {'chg_density_diff': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
+        # remove all the files you created
         [os.remove(i) for i in ['CHGCAR_1','CHGCAR_2','CHGCAR_comb']]
-        obj_id = fw_spec.get('obj_id', None)
-        if obj_id:
-            logger.info('CDD: Updating {} with charge density difference'.format(obj_id[0]))
-            try:
-                col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
-            except Exception:
-                raise ValueError('Failed to insert CDD into previous task_doc')
-        else:
-            logger.info('### WARNING CDD NOT INSERTED INTO PREVIOUS TASK DOC: No ObjectId found.')
-            with open('cdd_dict.json', 'w') as f:
-                f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
+       
+        # put it in a dictionary
+        cdd_dict = {'chg_density_diff': {'distance': chg1['distance'], 'chg_density': chg_cdd}}
 
-    # TASKDOC: Add additional information to task doc
+    # TASKDOC: Add additional information to task doc, clean it up
     if additional_fields:
         for key, value in additional_fields.items():
             store_doc[key] = value
-    # sanitize database info
-    electronic_dict = jsanitize(store_doc)
-    # Insert Data into Database
-    if any([dos, bader, parse_vasp]):
-        t_id = col.insert(electronic_dict)
+    electronic_dict = jsanitize(store_doc) # sanitize database info
 
-    ## Separately upload the DOS to GridFS in DB ##
+    # connect to database & insert electronic_dict
+    conn, database = get_mongo_client(db_file, db_type=fw_spec.get('db_type', None))
+    db = conn[database]
+    col = db[task_collection]
+
+    # MAIN TASKDOC: Insert Data into Database
+    if any([dos, bader, parse_vasp]):
+        try:
+            t_id = col.insert(electronic_dict)
+            logger.info('TASKDOC: ElectronicFW taskdoc upload.')
+        except:
+            traceback.print_exc()
+            raise ValueError('Failed to insert electronic_dict to the DB')
+    ## DOS TASKDOC: DOS into the GridFS in DB ##
     if dos:
-        # insert dos document into gridfs. The DOS is in gridfs in dos_fs.files with
-        # DosBader._id and the chunk stored data in dos_fs.chunks with files_id.
         # LOOKUP: DosBader._id=dos_fs.files._id=dos_fs.chunks.files_id
 
-        # Putting task id in the metadata subdocument as per mongo specs
+        # Putting object_id in the metadata subdocument as per mongo specs
         m_data = {"compression": "zlib", "task_label": task_label}
         # always perform the string conversion when inserting directly to gridfs
         d = json.dumps(dos_dict, cls=MontyEncoder)
         d = zlib.compress(d.encode(), True)
         # connect to gridFS
         fs = gridfs.GridFS(db, "dos_fs")
-        fs_id = fs.put(d, _id=t_id, metadata=m_data)
-        # insert into gridfs
-        col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
-        col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
-        logger.info('DOS inserted into GridFS.')
-
+        try:
+            fs_id = fs.put(d, _id=t_id, metadata=m_data)
+            # insert into gridfs
+            col.update_one({"task_id": t_id}, {"$set": {"dos_compression": "zlib"}})
+            col.update_one({"task_id": t_id}, {"$set": {"dos_fs_id": fs_id}})
+            logger.info('DOS inserted into GridFS.')
+        except:
+            raise ValueError('Failed to insert DOS into GridFS')
+    ## CDD TASKDOC: Append to the Combined system task doc ##
+    if cdd:
+        # get the workflow to update CDD with
+        obj_id = fw_spec.get('obj_id', None)
+        if obj_id:
+            logger.info('CDD: Updating {} with charge density difference'.format(obj_id[0]))
+            # update the workflow or write to the directory
+            try:
+                col.update_one({"_id": ObjectId(obj_id[0])}, {"$set": cdd_dict } )
+            except Exception:
+                with open('cdd_dict.json', 'w') as f:
+                    f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
+                raise ValueError('Failed to insert CDD into previous task_doc')
+        else:
+            logger.info('### WARNING CDD NOT INSERTED INTO PREVIOUS TASK DOC: No ObjectId found.')
+            with open('cdd_dict.json', 'w') as f:
+                f.write(json.dumps(cdd_dict, default=DATETIME_HANDLER))
     # dump analysis to directory in case something happens. just re-upload this
-    # file to the db. just in case.
+    # file to the db. 
     analysis = {**cdd_dict, **dos_dict, **electronic_dict}
     with open('electronic_property.json', 'w') as f:
         f.write(json.dumps(analysis, default=DATETIME_HANDLER))
