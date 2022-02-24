@@ -545,6 +545,15 @@ def slurm_set_npar():
         return 2
 
 def decompress(infile, tofile):
+    '''
+    Method to decompress a gzip file. Specify the input file and the output.
+    Leaves the original gzipped file compressed.
+
+    Args:
+        infile (str): Absolute or relative file path of file to decompress
+            using gzip.
+        tofile (str): Absolute or relative file path of the decompressed file.
+    '''
     with open(infile, 'rb') as inf, open(tofile, 'w', encoding='utf8') as tof:
         decom_str = gzip.decompress(inf.read()).decode('utf-8')
         tof.write(decom_str)
