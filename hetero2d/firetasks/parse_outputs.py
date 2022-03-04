@@ -391,7 +391,7 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         store_doc.update(ba)
 
     # TASKDOC: Z-projected Charge Density
-     if re.search('NSCF:': task_label) and cdd != True:
+    if re.search('NSCF:', task_label) and cdd != True:
         logger.info("Computing Z-projected Charge Density: {}".format(calc_dir))
         try: 
             # compute the projected charge density difference, assume uncompressed
