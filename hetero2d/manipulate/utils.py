@@ -22,7 +22,7 @@ from pymatgen.core.surface import Slab
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.electronic_structure.dos import Dos
+from pymatgen.electronic_structure.dos import Dos,CompleteDos
 
 from atomate.vasp.powerups import get_fws_and_tasks
 
@@ -95,8 +95,11 @@ def get_dos(client, taskdoc):
     bs_json = zlib.decompress(fs.get(fs_id).read())
     obj_dict = json.loads(bs_json.decode())
 
-    dos_obj = CompleteDos.from_dict(obj_dict)
-    #dos_obj = { Element(key): Dos.from_dict(value) for key, value in obj_dict.items()}
+    try:
+        dos_obj = CompleteDos.from_dict(obj_dict)
+    except:
+        dos_obj = { Element(key): Dos.from_dict(value) for key, value in obj_dict.items()}
+
     return dos_obj
 
 ############################################
