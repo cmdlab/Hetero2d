@@ -244,6 +244,9 @@ class GenHeteroStructuresFW(Firework):
             parents (Firework): Parents of this particular Firework. FW or list of FWS.
             kwargs: Other kwargs that are passed to Firework.__init__.
         """
+        #TODO: @tboland1: add a check to make sure the final structure has a large
+        # enough periodic z separation between the top layer of the 2d and the bottom layer 
+        # of the substrate. - @tboland1
         struct_sub = spec["struct_sub"]  # only used to set correct composition
 
         # FW Name
