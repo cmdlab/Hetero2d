@@ -42,3 +42,8 @@ The Hetero2d package dependancies have a lot of documentation to look over. I wi
 
 ## Examples
 To get started using Hetero2d, various tutorials and examples have been created using Jupyter Notebooks. These notebooks demonstrate the basic functionality of Hetero2d to enable users to quickly learn how to use the various modules within this package. These can be found under Hetero2d/examples.
+
+## Issues Installing
+1. If you have a new install you likely do not have the gcc compiler that pymatgen requires. In that case run 
+- `sudo apt install build-essential`
+- `sudo apt-get install manpages-dev`
