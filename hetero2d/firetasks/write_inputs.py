@@ -6,23 +6,21 @@
 These classes write the vasp input sets used to control VASP tags.
 """
 from __future__ import division, print_function, unicode_literals, absolute_import
-import os, numpy as np
+
+import os
 from importlib import import_module
 
-from pymatgen import Structure
-from pymatgen.io.vasp import Poscar 
-from pymatgen.alchemy.materials import TransformedStructure
-from pymatgen.alchemy.transmuters import StandardTransmuter
-from pymatgen.transformations.site_transformations import AddSitePropertyTransformation
-
+from atomate.utils.utils import get_logger
 from fireworks.core.firework import FiretaskBase
 from fireworks.utilities.fw_utilities import explicit_serialize
-
-from atomate.utils.utils import get_logger
+from pymatgen.alchemy.materials import TransformedStructure
+from pymatgen.alchemy.transmuters import StandardTransmuter
+from pymatgen.core import Structure
+from pymatgen.io.vasp import Poscar
+from pymatgen.transformations.site_transformations import AddSitePropertyTransformation
 
 from hetero2d.io import CMDLElectronicSet
 from hetero2d.manipulate.utils import set_sd_flags
-
 
 __author__ = 'Tara M. Boland'
 __email__ = 'tboland1@asu.edu'

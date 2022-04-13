@@ -10,23 +10,21 @@ Most functions here are not intented to be used outside of specific fireworks.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
-import glob, os, re
-from six.moves import range
+import glob
+import os
+import re
 from copy import deepcopy
 from importlib import import_module
 
-from monty.json import jsanitize
-from monty.serialization import dumpfn
-
-from pymatgen import Structure
-
+from atomate.utils.utils import get_logger, env_chk
 from fireworks.core.firework import FiretaskBase, FWAction
 from fireworks.utilities.fw_utilities import explicit_serialize
+from monty.json import jsanitize
+from monty.serialization import dumpfn
+from pymatgen.core import Structure
+from six.moves import range
 
-from atomate.utils.utils import get_logger, env_chk
-
-from hetero2d.manipulate.utils import get_mongo_client 
-
+from hetero2d.manipulate.utils import get_mongo_client
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"

@@ -12,15 +12,12 @@ import numpy as np, sys
 from six.moves import range
 from copy import deepcopy
 
-from mpinterfaces.transformations import reduced_supercell_vectors, get_r_list, get_angle, \
-    get_mismatch, get_area
-
-from pymatgen import Structure, Lattice
+from pymatgen.core import Structure, Lattice
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.core.surface import Slab
-
-from hetero2d.manipulate.utils import slab_from_struct, get_fu
+from hetero2d.manipulate.utils import slab_from_struct, get_fu, reduced_supercell_vectors, get_r_list, get_angle, \
+    get_mismatch, get_area
 from hetero2d.manipulate.layersolver import LayerSolver
 
 __author__ = "Tara M. Boland, Arunima Singh"

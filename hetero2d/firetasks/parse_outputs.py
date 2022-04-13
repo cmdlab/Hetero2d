@@ -9,27 +9,27 @@ parameters and update a mongoDB with the relevant information.
 
 from __future__ import division, print_function, unicode_literals, absolute_import
 
-import glob, os, re, gridfs, json, zlib, traceback
+import glob
+import gridfs
+import json
+import os
+import re
+import traceback
+import zlib
+
 import numpy as np
-from bson import ObjectId
-
-from monty.os.path import which
-from monty.json import MontyEncoder, jsanitize
-from monty.serialization import dumpfn
-
-from pymatgen import Structure
-from pymatgen.io.vasp import Potcar
-from pymatgen.io.vasp.outputs import Vasprun
-from pymatgen.io.vasp.sets import get_vasprun_outcar
-from pymatgen.command_line.bader_caller import bader_analysis_from_path
-
-from fireworks.core.firework import FiretaskBase, FWAction
-from fireworks.utilities.fw_serializers import DATETIME_HANDLER
-from fireworks.utilities.fw_utilities import explicit_serialize
-
 from atomate.common.firetasks.glue_tasks import get_calc_loc
 from atomate.utils.utils import get_logger, env_chk, get_meta_from_structure
 from atomate.vasp.drones import VaspDrone
+from bson import ObjectId
+from fireworks.core.firework import FiretaskBase, FWAction
+from fireworks.utilities.fw_serializers import DATETIME_HANDLER
+from fireworks.utilities.fw_utilities import explicit_serialize
+from monty.json import MontyEncoder, jsanitize
+from pymatgen.command_line.bader_caller import bader_analysis_from_path
+from pymatgen.core import Structure
+from pymatgen.io.vasp import Potcar
+from pymatgen.io.vasp.sets import get_vasprun_outcar
 
 from hetero2d.manipulate.utils import tag_iface, get_mongo_client, get_FWjson
 from hetero2d.manipulate.utils import vtotav, decompress

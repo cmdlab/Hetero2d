@@ -9,27 +9,25 @@ substrates, and adsorbed 2D films on a substrate slab surface.
 """
 
 from __future__ import division, print_function, unicode_literals, absolute_import
-from monty.os.path import which
 
-from pymatgen import Structure
+import warnings
 
+from atomate.common.firetasks.glue_tasks import PassCalcLocs
+from atomate.utils.utils import get_logger
+from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE
+from atomate.vasp.firetasks.glue_tasks import CopyVaspOutputs
+from atomate.vasp.firetasks.run_calc import RunVaspCustodian
+from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet
 from fireworks import Firework, FileWriteTask
 from fireworks.utilities.fw_utilities import get_slug
+from pymatgen.core import Structure
 
-from atomate.utils.utils import get_logger
-from atomate.vasp.firetasks.run_calc import RunVaspCustodian
-from atomate.vasp.firetasks.glue_tasks import CopyVaspOutputs
-from atomate.vasp.firetasks.write_inputs import WriteVaspFromIOSet
-from atomate.common.firetasks.glue_tasks import PassCalcLocs
-from atomate.vasp.config import HALF_KPOINTS_FIRST_RELAX, RELAX_MAX_FORCE, VASP_CMD, DB_FILE
-
-from hetero2d.io import CMDLInterfaceSet
-from hetero2d.firetasks.run_calc import RunElectronicCustodian
-from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
 from hetero2d.firetasks.heteroiface_tasks import CreateHeterostructureTask
-from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet,\
+from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
+from hetero2d.firetasks.run_calc import RunElectronicCustodian
+from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlabStructureIOSet, \
     WriteVaspElectronicFromPrev
-
+from hetero2d.io import CMDLInterfaceSet
 
 __author__ = 'Tara M. Boland'
 __copyright__ = "Copyright 2020, CMD Lab"

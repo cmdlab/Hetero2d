@@ -7,33 +7,37 @@ Useful utilities to view, analyze, and change structures. Some functions are not
 the user. 
 """
 
-import re, shlex, os, sys, json, gzip, numpy as np, math, pymongo, gridfs, zlib
+import gridfs
+import gzip
+import json
+import math
+import numpy as np
+import os
+import pymongo
+import re
+import sys
+import zlib
 from copy import deepcopy
+
+from ase.calculators.vasp import VaspChargeDensity
+from ase.visualize import view
+from atomate.vasp.powerups import get_fws_and_tasks
 from bson import ObjectId
 from monty.serialization import loadfn, dumpfn
-
-from ase import Atom
-from ase.visualize import view
-from ase.calculators.vasp import VaspChargeDensity
-
-from pymatgen import Structure, Lattice, Specie, Element
-from pymatgen.io.ase import AseAtomsAdaptor
-from pymatgen.core.surface import Slab
 from pymatgen.analysis.local_env import CrystalNN
-from pymatgen.analysis.structure_matcher import StructureMatcher
-from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
-from pymatgen.electronic_structure.dos import Dos,CompleteDos
-
-from atomate.vasp.powerups import get_fws_and_tasks
+from pymatgen.core import Structure, Lattice, Element
+from pymatgen.core.surface import Slab
+from pymatgen.electronic_structure.dos import Dos, CompleteDos
+from pymatgen.io.ase import AseAtomsAdaptor
 
 from hetero2d.manipulate.layersolver import LayerSolver
-
 
 __author__ = "Tara M. Boland, Arunima Singh"
 __copyright__ = "Copyright 2020, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = "tboland1@asu.edu"
 __date__ = "June 5, 2020"
+
 
 ############################
 ### Connection utilities ###
@@ -59,8 +63,8 @@ def get_mongo_client(db_file, db_type=None):
 
     if db_type == None:
         port = db.get('port', 27017)
-        client = pymongo.MongoClient(host=host_name, port=port, 
-            authsource='admin', username=user_name, password=password)
+        client = pymongo.MongoClient(host=host_name, port=port,
+                                     authsource='admin', username=user_name, password=password)
     elif db_type == 'ATLAS':
         connection_url = "mongodb+srv://" + user_name + ":" + password + "@" + host_name + "/" \
                          + database_name + "?retryWrites=true&w=majority"
@@ -72,6 +76,7 @@ def get_mongo_client(db_file, db_type=None):
                          + "&wtimeout=300000"
         client = pymongo.MongoClient(connection_url)
     return client, database_name
+
 
 def get_dos(client, taskdoc):
     '''
@@ -98,9 +103,10 @@ def get_dos(client, taskdoc):
     try:
         dos_obj = CompleteDos.from_dict(obj_dict)
     except:
-        dos_obj = { Element(key): Dos.from_dict(value) for key, value in obj_dict.items()}
+        dos_obj = {Element(key): Dos.from_dict(value) for key, value in obj_dict.items()}
 
     return dos_obj
+
 
 ############################################
 ### Post/Pre processing helper functions ###
@@ -124,40 +130,40 @@ def vtotav(chgcar_file, axis='z'):
 
     # Specify the axis to make average in. Default is Z.
     allowed = "xyzXYZ"
-    if allowed.find(axis) == -1 or len(axis) !=1:
-        axis = 'Z' if allowed.find(axis) == -1 or len(axis)!=1 else axis
+    if allowed.find(axis) == -1 or len(axis) != 1:
+        axis = 'Z' if allowed.find(axis) == -1 or len(axis) != 1 else axis
     axis = axis.upper() if axis.islower() else axis
 
     # Open geometry and density class objects
-    #-----------------------------------------
-    vasp_charge = VaspChargeDensity(filename = chgcar_file)
+    # -----------------------------------------
+    vasp_charge = VaspChargeDensity(filename=chgcar_file)
     potl = vasp_charge.chg[-1]
     atoms = vasp_charge.atoms[-1]
     del vasp_charge
-    
+
     # Read in lattice parameters and scale factor
-    #---------------------------------------------
+    # ---------------------------------------------
     cell = atoms.cell
 
     # Find length of lattice vectors
-    #--------------------------------
+    # --------------------------------
     latticelength = np.dot(cell, cell.T).diagonal()
-    latticelength = latticelength**0.5
+    latticelength = latticelength ** 0.5
 
     # Read in potential data
-    #------------------------
+    # ------------------------
     ngridpts = np.array(potl.shape)
-    x_grid ,y_grid ,z_grid = ngridpts[0],ngridpts[1],ngridpts[2]
-    totgridpts = ngridpts.prod() # Total number of points
+    x_grid, y_grid, z_grid = ngridpts[0], ngridpts[1], ngridpts[2]
+    totgridpts = ngridpts.prod()  # Total number of points
     sys.stdout.flush()
 
     # Perform average
-    #-----------------
-    if axis=="X":
+    # -----------------
+    if axis == "X":
         idir = 0
         a = 1
         b = 2
-    elif axis=="Y":
+    elif axis == "Y":
         a = 0
         idir = 1
         b = 2
@@ -165,37 +171,38 @@ def vtotav(chgcar_file, axis='z'):
         a = 0
         b = 1
         idir = 2
-    a = (idir+1)%3
-    b = (idir+2)%3
-    
+    a = (idir + 1) % 3
+    b = (idir + 2) % 3
+
     # At each point, sum over other two indices
-    average = np.zeros(ngridpts[idir],np.float)
+    average = np.zeros(ngridpts[idir], np.float)
     for ipt in range(ngridpts[idir]):
-        if axis=="X":
-            average[ipt] = potl[ipt,:,:].sum()
-        elif axis=="Y":
-            average[ipt] = potl[:,ipt,:].sum()
+        if axis == "X":
+            average[ipt] = potl[ipt, :, :].sum()
+        elif axis == "Y":
+            average[ipt] = potl[:, ipt, :].sum()
         else:
-            average[ipt] = potl[:,:,ipt].sum()
+            average[ipt] = potl[:, :, ipt].sum()
 
     # Scale chgcar by size of area element in the plane,
     # gives unit e/Ang. I.e. integrating the resulting
     # CHG_dir file should give the total charge.
-    area = np.linalg.det([ (cell[a,a], cell[a,b] ),
-                           (cell[b,a], cell[b,b])])
-    dA = area/(ngridpts[a]*ngridpts[b])
+    area = np.linalg.det([(cell[a, a], cell[a, b]),
+                          (cell[b, a], cell[b, b])])
+    dA = area / (ngridpts[a] * ngridpts[b])
     average *= dA
-    
+
     # Get the average
-    #-----------------
+    # -----------------
     sys.stdout.flush()
     proj_chg = {'distance': [], 'chg_density': []}
-    xdiff = latticelength[idir]/float(ngridpts[idir]-1)
+    xdiff = latticelength[idir] / float(ngridpts[idir] - 1)
     for i in range(ngridpts[idir]):
-        x = i*xdiff
+        x = i * xdiff
         proj_chg['distance'].append(round(x, 8))
         proj_chg['chg_density'].append(round(average[i], 8))
     return proj_chg
+
 
 ## Structure Analyzers ##
 def average_z_sep(structure, iface_idx, initial=None):
@@ -223,7 +230,7 @@ def average_z_sep(structure, iface_idx, initial=None):
     # get the 2d sub separation dist (bot & top atoms) 
     # define layers for top and bottom
     nlayers = iface_idx['num_2d_layer']
-    z = ['sub_layer_1','2d_layer_1','2d_layer_'+str(nlayers)]
+    z = ['sub_layer_1', '2d_layer_1', '2d_layer_' + str(nlayers)]
 
     # get the indices from iface that define the interface
     idx_subs, idx_tD_top, idx_tD = [iface_idx[i] for i in z]
@@ -236,25 +243,26 @@ def average_z_sep(structure, iface_idx, initial=None):
     # compute the average z coord of the top layer of the 2d film
     td_top_z_avg_f = np.average([coords_f[i][2] for i in idx_tD_top])
     # difference between bottom layer of 2d from top layer of substrate
-    zsep_f = abs(sub_z_avg_f-td_z_avg_f)
+    zsep_f = abs(sub_z_avg_f - td_z_avg_f)
     # the thickness of the post-adsorbed 2d film
-    td_diff_f = abs(td_z_avg_f-td_top_z_avg_f)        
+    td_diff_f = abs(td_z_avg_f - td_top_z_avg_f)
 
     # if given initial structure compute initial distances
     if initial:
         # initial structure
         coords_i = initial.cart_coords
         # z separation distance
-        td_z_avg_i  = np.average([coords_i[i][2] for i in idx_tD])
+        td_z_avg_i = np.average([coords_i[i][2] for i in idx_tD])
         td_top_z_avg_i = np.average([coords_i[i][2] for i in idx_tD_top])
-        td_diff_i = abs(td_z_avg_i-td_top_z_avg_i)
-        delta_2d_z = td_diff_f-td_diff_i
-    
+        td_diff_i = abs(td_z_avg_i - td_top_z_avg_i)
+        delta_2d_z = td_diff_f - td_diff_i
+
     # return value to users
     if not initial:
         return zsep_f
-    else: 
+    else:
         return zsep_f, delta_2d_z
+
 
 def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     '''
@@ -296,16 +304,17 @@ def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     # count the number of formula units of the 2d material
     # in the heteroiface struct
     for key in na_unit_2d.keys():
-        fu_2d[key] = na_aligned_2d[key]/na_unit_2d[key]
+        fu_2d[key] = na_aligned_2d[key] / na_unit_2d[key]
     n_2d = fu_2d[key]
 
     # get the number of formula units of the substrate
     # slab in the heteroiface structure
     for key in na_unit_sub.keys():
-        fu_sub[key] = na_aligned_sub[key]/na_unit_sub[key]
-    n_sub = fu_sub[key]    
+        fu_sub[key] = na_aligned_sub[key] / na_unit_sub[key]
+    n_sub = fu_sub[key]
 
     return n_2d, n_sub
+
 
 def center_slab(structure):
     """
@@ -318,11 +327,12 @@ def center_slab(structure):
     Returns:
         Centered Structure object
     """
-    
+
     center = np.average([s._fcoords[2] for s in structure.sites])
     translation = (0, 0, 0.5 - center)
     structure.translate_sites(range(len(structure.sites)), translation)
     return structure
+
 
 def tag_iface(structure, nlayers_2d, nlayers_sub=2):
     """
@@ -354,17 +364,17 @@ def tag_iface(structure, nlayers_2d, nlayers_sub=2):
     # get all unique coords for each layer
     layer_coords_dict = {}
     # get 2d layer indices
-    for idx in list(range(1, nlayers_2d+1)):
+    for idx in list(range(1, nlayers_2d + 1)):
         layer_coords = unique_layer_coords[-idx]
         layer_name = '2d_layer_' + str(abs(idx))
         layer_coords_dict[layer_name] = layer_coords
     # get sub layer indices
-    for count, idx in enumerate(range(nlayers_2d+1, nlayers_2d+nlayers_sub+1)):
+    for count, idx in enumerate(range(nlayers_2d + 1, nlayers_2d + nlayers_sub + 1)):
         layer_coords = unique_layer_coords[-idx]
-        layer_name = 'sub_layer_' + str(count+1)
-        layer_coords_dict[layer_name] = layer_coords 
-    
-    # get atom ids for each layer
+        layer_name = 'sub_layer_' + str(count + 1)
+        layer_coords_dict[layer_name] = layer_coords
+
+        # get atom ids for each layer
     layer_indices = {key: [] for key in layer_coords_dict.keys()}
     for idx, site in enumerate(structure.sites):
         site_coords = round_decimals_down(site.frac_coords[2], decimals=3)
@@ -374,8 +384,9 @@ def tag_iface(structure, nlayers_2d, nlayers_sub=2):
 
     layer_indices['num_2d_layer'] = nlayers_2d
     layer_indices['num_sub_layer'] = nlayers_sub
-    
+
     return layer_indices
+
 
 def iface_layer_locator(structure, cutoff, iface_elements):
     """
@@ -413,6 +424,7 @@ def iface_layer_locator(structure, cutoff, iface_elements):
         print('\t\t## Iface composition not found. Maybe the surface has undergone significant relaxation.')
         return None, None, None
 
+
 def atomic_distance(structure, dist=2):
     """
     Given a structure and an interatomic separation distance all sites which have a
@@ -424,8 +436,9 @@ def atomic_distance(structure, dist=2):
     """
     for idx, i in enumerate(structure.sites):
         for idx1, j in enumerate(structure.sites):
-            if struct.distance_matrix[idx][idx1] < dist and idx != idx1:
+            if structure.distance_matrix[idx][idx1] < dist and idx != idx1:
                 print(idx, idx1, i, j)
+
 
 ## POSCAR Modifier ##
 def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=2):
@@ -465,6 +478,7 @@ def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=
         print('sd_flags', sd_flags)
     return sd_flags.tolist()
 
+
 ## Workflow Modifier ##
 def change_Tasks(original_wf, mode, fw_name_constraint=None,
                  task_name_constraint='VaspToDb', change_method=None):
@@ -488,22 +502,23 @@ def change_Tasks(original_wf, mode, fw_name_constraint=None,
             valid arguements for the VaspToDb method in key: value format. 
     '''
     idx_list = get_fws_and_tasks(original_wf, fw_name_constraint=fw_name_constraint,
-        task_name_constraint=task_name_constraint)
-    
+                                 task_name_constraint=task_name_constraint)
+
     if mode == 'change':
         for idx_fw, idx_t in idx_list:
-            original_wf.fws[idx_fw].tasks[idx_t].update(change_method)     
-    
-    # update all vasptodb methods given the contrainsts provided
+            original_wf.fws[idx_fw].tasks[idx_t].update(change_method)
+
+            # update all vasptodb methods given the contrainsts provided
     if mode == 'update':
         for idx_fw, idx_t in idx_list:
             original_wf.fws[idx_fw].tasks[idx_t].update(change_method)
-    
+
     # remove all matching vasptodb methods given the contrainsts provided
     if mode == 'remove':
         for idx_fw, idx_t in idx_list:
             original_wf.fws[idx_fw].tasks.pop(idx_t)
     return original_wf
+
 
 ## Helper Function ##
 def slurm_set_npar():
@@ -515,28 +530,28 @@ def slurm_set_npar():
     # set npar looking for ntasks from os.environ: nslots and slurm_cpus_per_task
     # fails on all slurm systems
     slurm_keys = list(os.environ.keys())
-    ncore_keys = [ [key for key in slurm_keys if re.search(match, key) ] 
-                            for match in ['TASKS','NSLOTS','CPU','NODE']]
+    ncore_keys = [[key for key in slurm_keys if re.search(match, key)]
+                  for match in ['TASKS', 'NSLOTS', 'CPU', 'NODE']]
     ncore_keys = list(np.unique(sum(ncore_keys, [])))
 
-    slurm_dict = {key:os.environ[key] for key in ncore_keys}
+    slurm_dict = {key: os.environ[key] for key in ncore_keys}
     dumpfn(slurm_dict, 'slurm_keys.json')
 
     for key in ncore_keys:
-        if re.search('SLURM_NTASKS',key):
+        if re.search('SLURM_NTASKS', key):
             ncores = int(os.environ[key])
             break
-        #elif re.search('SLURM_JOB_CPUS_ON_NODE',key):
+        # elif re.search('SLURM_JOB_CPUS_ON_NODE',key):
         #    
         #    ncores = int(os.environ[key])
         #    break
-        elif re.search('NSLOTS',key):
-            ncores = int(os.environ[key]) 
+        elif re.search('NSLOTS', key):
+            ncores = int(os.environ[key])
             break
     npars = []
     npar_found = False
     if ncores and ncores != 1:
-        for npar in range(int(math.sqrt(ncores)),ncores):
+        for npar in range(int(math.sqrt(ncores)), ncores):
             if ncores % npar == 0:
                 npars.append(npar)
                 npar_found = True
@@ -546,6 +561,7 @@ def slurm_set_npar():
     else:
         # returning npar = 2 is a safe default
         return 2
+
 
 def decompress(infile, tofile):
     '''
@@ -561,6 +577,7 @@ def decompress(infile, tofile):
         decom_str = gzip.decompress(inf.read()).decode('utf-8')
         tof.write(decom_str)
 
+
 def get_FWjson():
     """
     Helper function which reads the FW.json file in the
@@ -573,6 +590,7 @@ def get_FWjson():
         with open('FW.json', 'rb') as p:
             fw_json_file = json.load(p)
     return fw_json_file
+
 
 def round_decimals_down(number: float, decimals: int = 2):
     """
@@ -588,14 +606,16 @@ def round_decimals_down(number: float, decimals: int = 2):
     factor = 10 ** decimals
     return math.floor(number * factor) / factor
 
+
 def get_key(my_dict, val):
     ''' 
     Function returns the key corresponding to a dictionary value.
     '''
     for key, value in my_dict.items():
-         if val == value:
+        if val == value:
             return key
     return "key doesn't exist"
+
 
 ############################
 ### Conversion Functions ###
@@ -626,6 +646,7 @@ def slab_from_struct(structure, hkl=None):
                 shift=0,
                 scale_factor=np.eye(3, dtype=np.int),
                 site_properties=slab_input.site_properties)
+
 
 def struct_from_str(string):
     """
@@ -662,6 +683,7 @@ def struct_from_str(string):
 
     return Structure(lattice, specie, coords)
 
+
 def show_struct_ase(structure):
     """
     Creates a pop up structure model for a pymatgen structure object using ase's
@@ -675,6 +697,7 @@ def show_struct_ase(structure):
     structure = to_ase.get_atoms(structure)
     viewer = view(structure)
     return viewer
+
 
 #########################################
 ### local structure analysis function ###
@@ -911,3 +934,126 @@ class nn_site_indices(CrystalNN):
             nn_elms[t_site] = nn_site_elm
 
         return nn_elms
+
+
+def reduced_supercell_vectors(ab, n):
+    """
+    returns all possible reduced in-plane lattice vectors and
+    transition matrices for the given starting unit cell lattice
+    vectors(ab) and the supercell size n
+    """
+    uv_list = []
+    tm_list = []
+    for r_tm in get_trans_matrices(n):
+        for tm in r_tm:
+            uv = get_uv(ab, tm)
+            uv, tm1 = get_reduced_uv(uv, tm)
+            uv_list.append(uv)
+            tm_list.append(tm1)
+    return uv_list, tm_list
+
+
+def get_trans_matrices(n):
+    """
+    yields a list of 2x2 transformation matrices for the
+    given supercell
+    n: size
+    """
+
+    def factors(n0):
+        for i in range(1, n0 + 1):
+            if n0 % i == 0:
+                yield i
+
+    for i in factors(n):
+        m = n // i
+        yield [[[i, j], [0, m]] for j in range(m)]
+
+
+def get_uv(ab, t_mat):
+    """
+    return u and v, the supercell lattice vectors obtained through the
+    transformation matrix
+    """
+    u = np.array(ab[0]) * t_mat[0][0] + np.array(ab[1]) * t_mat[0][1]
+    v = np.array(ab[1]) * t_mat[1][1]
+    return [u, v]
+
+
+def get_reduced_uv(uv, tm):
+    """
+    returns reduced lattice vectors
+    """
+    is_not_reduced = True
+    u = np.array(uv[0])
+    v = np.array(uv[1])
+    tm1 = np.array(tm)
+    u1 = u.copy()
+    v1 = v.copy()
+    while is_not_reduced:
+        if np.dot(u, v) < 0:
+            v = -v
+            tm1[1] = -tm1[1]
+        if np.linalg.norm(u) > np.linalg.norm(v):
+            u1 = v.copy()
+            v1 = u.copy()
+            tm1c = tm1.copy()
+            tm1[0], tm1[1] = tm1c[1], tm1c[0]
+        elif np.linalg.norm(v) > np.linalg.norm(u + v):
+            v1 = v + u
+            tm1[1] = tm1[1] + tm1[0]
+        elif np.linalg.norm(v) > np.linalg.norm(u - v):
+            v1 = v - u
+            tm1[1] = tm1[1] - tm1[0]
+        else:
+            is_not_reduced = False
+        u = u1.copy()
+        v = v1.copy()
+    return [u, v], tm1
+
+
+def get_r_list(area1, area2, max_area, tol=0.02):
+    """
+    returns a list of r1 and r2 values that satisfies:
+    r1/r2 = area2/area1 with the constraints:
+    r1 <= Area_max/area1 and r2 <= Area_max/area2
+    r1 and r2 corresponds to the supercell sizes of the 2 interfaces
+    that align them
+    """
+    r_list = []
+    rmax1 = int(max_area / area1)
+    rmax2 = int(max_area / area2)
+    print('rmax1, rmax2: {0}, {1}\n'.format(rmax1, rmax2))
+    for r1 in range(1, rmax1 + 1):
+        for r2 in range(1, rmax2 + 1):
+            if abs(float(r1) * area1 - float(r2) * area2) / max_area <= tol:
+                r_list.append([r1, r2])
+    return r_list
+
+
+def get_mismatch(a, b):
+    """
+    percentage mistmatch between the lattice vectors a and b
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.linalg.norm(b) / np.linalg.norm(a) - 1
+
+
+def get_angle(a, b):
+    """
+    angle between lattice vectors a and b in degrees
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.arccos(
+        np.dot(a, b) / np.linalg.norm(a) / np.linalg.norm(b)) * 180 / np.pi
+
+
+def get_area(uv):
+    """
+    area of the parallelogram
+    """
+    a = uv[0]
+    b = uv[1]
+    return np.linalg.norm(np.cross(a, b))

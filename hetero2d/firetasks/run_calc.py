@@ -38,6 +38,7 @@ __email__ = 'tboland1@asu.edu'
 
 logger = get_logger(__name__)
 
+
 @explicit_serialize
 class ElectronicJob(VaspJob):
     """
@@ -47,8 +48,8 @@ class ElectronicJob(VaspJob):
     """
 
     def __init__(self, vasp_cmd, output_file="vasp.out", stderr_file="std_err.txt",
-        suffix="", final=True, backup=True, auto_npar=False, auto_gamma=True,
-        settings_override=None, gamma_vasp_cmd=None, copy_magmom=False, auto_continue=False):
+                 suffix="", final=True, backup=True, auto_npar=False, auto_gamma=True,
+                 settings_override=None, gamma_vasp_cmd=None, copy_magmom=False, auto_continue=False):
         """
         This constructor is necessarily complex due to the need for
         flexibility. For standard kinds of runs, it's often better to use one
@@ -113,11 +114,11 @@ class ElectronicJob(VaspJob):
         self.copy_magmom = copy_magmom
         self.auto_continue = auto_continue
         super().__init__(vasp_cmd, output_file, stderr_file, final, backup, suffix, settings_override,
-                auto_npar, auto_gamma, gamma_vasp_cmd, copy_magmom, auto_continue)
+                         auto_npar, auto_gamma, gamma_vasp_cmd, copy_magmom, auto_continue)
 
     @classmethod
     def double_kpoints_run(cls, vasp_cmd, auto_npar=True, half_kpts_first=True,
-        auto_continue=False, slurm_npar=False):
+                           auto_continue=False, slurm_npar=False):
         """
         Returns a list of two jobs the first is to obtain the CHGCAR and WAVECAR
         with a low kp number using ICHARG = 1 with increased bands, charge density 
@@ -144,7 +145,7 @@ class ElectronicJob(VaspJob):
             List of two jobs corresponding to an AFLOW style run.
         """
         incar_orig = Incar.from_file('INCAR')
-        incar1 = {"ICHARG": 1, "LAECHG": False, "NEDOS": 301} 
+        incar1 = {"ICHARG": 1, "LAECHG": False, "NEDOS": 301}
         incar2 = {key: incar_orig.get(key) for key in incar1.keys() if key in incar_orig.keys()}
         if slurm_npar:
             npar = slurm_set_npar()
@@ -182,6 +183,7 @@ class ElectronicJob(VaspJob):
             ),
         ]
 
+
 @explicit_serialize
 class RunElectronicCustodian(FiretaskBase):
     """
@@ -213,7 +215,7 @@ class RunElectronicCustodian(FiretaskBase):
             Default set to false. 
     """
     required_params = ["vasp_cmd"]
-    optional_params = ["job_type", "handler_group", "scratch_dir", "gzip_output", 
+    optional_params = ["job_type", "handler_group", "scratch_dir", "gzip_output",
                        "max_errors", "auto_npar", "gamma_vasp_cmd", "slurm_npar",
                        "wall_time", "half_kpts_first"]
 
@@ -253,8 +255,9 @@ class RunElectronicCustodian(FiretaskBase):
 
         # construct jobs
         if job_type == "double_kpoints_run":
-            jobs = ElectronicJob.double_kpoints_run(vasp_cmd, auto_npar=auto_npar, 
-                  slurm_npar=slurm_npar, half_kpts_first=self.get("half_kpts_first", True))
+            jobs = ElectronicJob.double_kpoints_run(vasp_cmd, auto_npar=auto_npar,
+                                                    slurm_npar=slurm_npar,
+                                                    half_kpts_first=self.get("half_kpts_first", True))
         else:
             raise ValueError("Unsupported job type: {}".format(job_type))
 
@@ -275,4 +278,3 @@ class RunElectronicCustodian(FiretaskBase):
         if os.path.exists(zpath("custodian.json")):
             stored_custodian_data = {"custodian": loadfn(zpath("custodian.json"))}
             return FWAction(stored_data=stored_custodian_data)
-
