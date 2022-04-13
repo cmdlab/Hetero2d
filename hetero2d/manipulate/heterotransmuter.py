@@ -8,19 +8,19 @@ The code is adopted from the MPInterfaces to ensure the code is compatible with 
 atomate architecture, to fix minor bugs in the original code, and return interface matching criteria.
 """
 
+import numpy as np, sys
 from six.moves import range
 from copy import deepcopy
-import numpy as np, sys
 
 from mpinterfaces.transformations import reduced_supercell_vectors, get_r_list, get_angle, \
-    get_mismatch, get_area, get_uniq_layercoords
+    get_mismatch, get_area
 
 from pymatgen import Structure, Lattice
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.core.surface import Slab
 
-from hetero2d.manipulate.utils import slab_from_struct, show_struct_ase, get_fu
+from hetero2d.manipulate.utils import slab_from_struct, get_fu
 from hetero2d.manipulate.layersolver import LayerSolver
 
 __author__ = "Tara M. Boland, Arunima Singh"
@@ -70,10 +70,9 @@ def rotate_to_acute(structure):
 
     return new_structure
 
-
 def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                               nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, 
-                              separation=3.4):
+                              separation=3.4, symprec=False):
     """
     Given the 2 slab structures and the alignment parameters, return
     slab structures with lattices that are aligned with respect to each
@@ -99,7 +98,11 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
             3 layers.
         separation (float): separation between the substrate and the 2d
             material. Defaults to 3.4 angstroms.
-
+        symprec (bool/float): Perform symmetry matching to the specified 
+            tolerance for symmetry finding between the aligned and
+            original 2D structure. Enable if you notice the 2D lattice is
+            disformed. Defaults to False.
+        
     Returns:
         aligned_sub, aligned_2d, alignment_info  
     """
@@ -285,25 +288,27 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
     mat2d.modify_lattice(lmap)
     
     ## ensure that the symmetry of the 2d and aligned 2d agree
-    sg_mat2d = SpacegroupAnalyzer(mat2d)
-    sg_align = SpacegroupAnalyzer(struct_2d)
+    if symprec:
+        sg_mat2d = SpacegroupAnalyzer(mat2d, symprec=symprec)
+        sg_align = SpacegroupAnalyzer(struct_2d, symprec=symprec)
     
-    m2d = {}
-    align = {}
-    [m2d.update({key:sg_mat2d.get_symmetry_dataset()[key]})
-        for key in ['number','hall_number','international','hall','pointgroup']]
-    [align.update({key:sg_align.get_symmetry_dataset()[key]})
-        for key in ['number','hall_number','international','hall','pointgroup']]
+        m2d = {}
+        align = {}
+        [m2d.update({key:sg_mat2d.get_symmetry_dataset()[key]})
+            for key in ['number','hall_number','international','hall','pointgroup']]
+        [align.update({key:sg_align.get_symmetry_dataset()[key]})
+            for key in ['number','hall_number','international','hall','pointgroup']]
+        # compare mat2d and aligned lattice
+        is_equal = m2d == align
 
-    # compare mat2d and aligned lattice
-    is_equal = m2d == align
-
-    if is_equal == True:
-        return substrate, mat2d, alignment_info
+        if is_equal == True:
+            return substrate, mat2d, alignment_info
+        else:
+            print('SpacegroupAnalyzer failed.\n')
+            return None, None, None
+       
     else:
-        print('SpacegroupAnalyzer failed.\n')
-        return None, None, None
-
+        return substrate, mat2d, alignment_info
 
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
     """
@@ -311,7 +316,9 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     unique (Wyckoff) sites of the mat2d and substrate. The unique sites are iteratively matched 
     between the mat2d and substrate stacking the unique sites on top of each other separated by the
     separation distance parameter. This subsequently generates all possible 2d/substrate heterostructure
-    configurations stacked over high symmetry points. All unique structures are returned.
+    configurations stacked over high symmetry points. All unique structures are returned. To identify
+    the wyckoff sites stacked on top of each other the name is attached to each structure under
+    site_properties.
 
     Args:
         mat2d (Structure): Lattice and symmetry-matched 2D material 
@@ -332,10 +339,16 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
         sys.exit()
 
     # unique site coordinates in the substrate top layers
-    coords_uniq_sub = get_uniq_layercoords(substrate, nlayers_substrate, top=True)
+    coords_uniq_sub, uniq_sub_idx = get_uniq_layercoords(substrate, nlayers_substrate, top=True)
+    # add the wyckoff site to each site in substrate
+    spg = SpacegroupAnalyzer(substrate)
+    substrate.add_site_property('wyckoffs', spg.get_symmetry_dataset()['wyckoffs'])
 
     # unique site coordinates in the 2D material bottom layers
-    coords_uniq_2d = get_uniq_layercoords(mat2d, nlayers_2d, top=False)
+    coords_uniq_2d, uniq_2d_idx = get_uniq_layercoords(mat2d, nlayers_2d, top=False)
+    # add the wyckoff site to each site in mat2d
+    spg = SpacegroupAnalyzer(mat2d)
+    mat2d.add_site_property('wyckoffs', spg.get_symmetry_dataset()['wyckoffs'])
 
     # set separation distance betwn 2d and substrate
     substrate_top_z = np.max(np.array([site.coords for site in substrate])[:, 2])
@@ -351,12 +364,16 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     # an interface structure for each parallel shift
     # interface = 2D material + substrate    
     hetero_interfaces = []
-    shifted_mat2ds = []
-    for coord_i in coords_uniq_sub:
-        for coord_j in coords_uniq_2d:
-            interface = substrate.copy()  # in new code
-            new_2d = deepcopy(mat2d)  # shfited 2d w/o substrate
-            new_2d.remove_sites(range(0, new_2d.num_sites))
+    for coord_i, sub_idx in zip(coords_uniq_sub, uniq_sub_idx):
+        for coord_j, td_idx in zip(coords_uniq_2d, uniq_2d_idx):
+            # create interface structure to append the shifted 2d material
+            interface = substrate.copy()
+            interface.remove_site_property('wyckoffs') # remove wyckoffs
+            
+            # get the wyckoff site of the 2 sites being aligned on top of each other
+            td_wyckoff = mat2d[td_idx].properties['wyckoffs']
+            sub_wyckoff = substrate[sub_idx].properties['wyckoffs']
+            name='2D-'+td_wyckoff+' '+'Sub-'+sub_wyckoff # stacking of 2d on sub wyckoff
 
             # set the x,y coors for 2d
             shift_parallel = coord_i - coord_j
@@ -371,21 +388,14 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
                 new_coords = new_coords + origin + shift_net
                 interface.append(site.specie, new_coords,
                                  coords_are_cartesian=True)
-                new_2d.append(site.specie, new_coords,
-                              coords_are_cartesian=True)  # add for name
+            interface.add_site_property('name', [name] * interface.num_sites)
             hetero_interfaces.append(interface)
-            shifted_mat2ds.append(new_2d)  # shifted pure 2d 
-
-    # get the names for the hetero_interfaces
-    for td, iface in zip(shifted_mat2ds, hetero_interfaces):
-        name = iface_name(td, substrate)
-        iface.add_site_property('name', [name] * iface.num_sites)
 
     return hetero_interfaces
 
-
-def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
-                      nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4):
+def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200, nlayers_2d=3,
+                      nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4,
+                      symprec=False):
     """
     The given the 2D material and the substrate slab, the 2 slabs are
     combined to generate all possible unique structures for the
@@ -418,7 +428,11 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
             to 2 layers with bottom layer frozen.
         separation (float): Separation distance between struct_sub
             and struct_2d. Default 3.4 Angstroms.
-	    
+	symprec (bool/float): Perform symmetry matching to the specified 
+            tolerance for symmetry finding between the aligned and
+            original 2D structure. Enable if you notice the 2D lattice is
+            disformed. Defaults to False.
+    
     Returns:
         Unique hetero_structures list, last entry contains lattice alignment
         information. Site properties contain iface name.
@@ -432,7 +446,8 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                                                                         max_area=max_area, 
                                                                         max_mismatch=max_mismatch,
                                                                         max_angle_diff=max_angle_diff, 
-                                                                        r1r2_tol=r1r2_tol)
+                                                                        r1r2_tol=r1r2_tol,
+                                                                        symprec=symprec)
 
     # exit if the aligned_hetero_structures returns None due to bad symmetry
     if sub_aligned is None:
@@ -449,7 +464,8 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
                                                                             max_area=max_area, 
                                                                             max_mismatch=max_mismatch,
                                                                             max_angle_diff=max_angle_diff, 
-                                                                            r1r2_tol=r1r2_tol)
+                                                                            r1r2_tol=r1r2_tol,
+                                                                            symprec=symprec)
         
         # exit if the aligned_hetero_structures returns None due to bad symmetry
         if sub_aligned is None:
@@ -477,50 +493,43 @@ def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
     hetero_interfaces.append(alignment_info)
     return hetero_interfaces
 
-
-def iface_name(mat2d, substrate):
+def get_uniq_layercoords(struct, nlayers, top=True):
     """
-    Helper function used to generate a unique interface name for a set of interfaces. The substrate's name
-    will always be the same but the 2d materials indices shit and these are changed from one configuration to
-    the next. 
+    Returns the coordinates and indices of unique sites in the top or bottom
+    nlayers of the given structure.
+
+    Args:
+        struct (Structure): Input structure.
+        nlayers (int): Number of layers.
+        top (bool): Top or bottom layers, default is top layer.
+
+    Returns:
+        numpy array of unique coordinates, corresponding list of atom indices
     """
-    # Gather Layer Data from LayerSolver
-    sub_data = LayerSolver(structure=substrate)
-    td_data = LayerSolver(structure=mat2d)
-
-    # number of 2d layers to get the bottom layer
-    numl_2d = td_data['num_layers']
-
-    # top layer of the substrate
-    top_layer = sub_data['Layer0']
-    # bottom layer of the mat2d
-    bottom_layer = td_data['Layer' + str(numl_2d - 1)]
-    
-    # Generate Substrate Name
-    wyc_s = np.array(top_layer['wyckoffs']) # get unique wyckoffs 
-    wyc_lyr_s, idx_s, multi_s = np.unique(wyc_s, return_index=True,
-                                          return_counts=True) # get unique layer info
-    
-    # pull the unique atom species strings 
-    s_s = [top_layer['sites'][idx].species_string
-           for idx in idx_s]
-
-    # create the substrates name
-    sub_name = ','.join([str(s) + '(' + str(w) + ')'
-                         for s, w in zip(s_s, wyc_lyr_s)])
-
-    # Generate Two-D Name
-    wyc_t = np.array(bottom_layer['wyckoffs'])
-    wyc_lyr_t, idx_t, multi_t = np.unique(wyc_t, return_index=True,
-                                          return_counts=True)
-    s_t = [bottom_layer['sites'][idx].species_string
-           for idx in idx_t]
-    td_name = ';'.join([str(s) + '(' + str(w) + ')'
-                        for s, w in zip(s_t, wyc_lyr_t)])
-
-    name = sub_name + td_name
-    return name
-
+    coords = np.array([site.coords for site in struct])
+    z = coords[:, 2]
+    z = np.around(z, decimals=4)
+    zu, zuind = np.unique(z, return_index=True)
+    z_nthlayer = z[zuind[-nlayers]]
+    zfilter = (z >= z_nthlayer)
+    if not top:
+        z_nthlayer = z[zuind[nlayers - 1]]
+        zfilter = (z <= z_nthlayer)
+    # site indices in the layers
+    indices_layers = np.argwhere(zfilter).ravel()
+    sa = SpacegroupAnalyzer(struct)
+    symm_data = sa.get_symmetry_dataset()
+    # equivalency mapping for the structure
+    # i'th site in the struct equivalent to eq_struct[i]'th site
+    eq_struct = symm_data["equivalent_atoms"]
+    # equivalency mapping for the layers
+    eq_layers = eq_struct[indices_layers]
+    # site indices of unique atoms in the layers
+    __, ueq_layers_indices = np.unique(eq_layers, return_index=True)
+    # print(ueq_layers_indices)
+    indices_uniq = indices_layers[ueq_layers_indices]
+    # coordinates of the unique atoms in the layers
+    return coords[indices_uniq], indices_uniq
 
 def remove_duplicates(uv_list, tm_list):
     """
