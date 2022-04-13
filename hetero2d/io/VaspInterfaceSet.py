@@ -13,7 +13,7 @@ from math import ceil, floor
 from monty.json import MSONable
 from monty.serialization import loadfn
 
-from pymatgen import Structure
+from pymatgen.core import Structure
 from pymatgen.io.vasp.inputs import Incar, Kpoints, Poscar, Potcar
 from pymatgen.io.vasp.sets import DictSet, get_vasprun_outcar
 
@@ -81,7 +81,7 @@ class CMDLInterfaceSet(CMDLRelaxSet):
         if sort_structure:
             structure = structure.get_sorted_structure()
 
-        self.structure = structure
+        self._structure = structure
         self.k_product = k_product
         self.iface = iface
         self.vdw = vdw.lower() if vdw is not None else None
@@ -100,7 +100,7 @@ class CMDLInterfaceSet(CMDLRelaxSet):
             iface_incar["NELMIN"] = 8
 
         if self.auto_dipole:
-            weights = [s.species_and_occu.weight for s in structure]
+            weights = [s.species.weight for s in structure]
             center_of_mass = np.average(structure.frac_coords,
                                         weights=weights, axis=0)
             iface_incar["IDIPOL"] = 3
