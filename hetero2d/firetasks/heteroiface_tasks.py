@@ -332,6 +332,7 @@ class CreateHeterostructureTask(FiretaskBase):
         heterostructure_dict = {'dir_name': calc_dir, 'number configs': num_cfs,
                                 'wf_name': fw_spec['wf_name'], 'task_label': fw_name, 'tags': tags}
         heterostructure_dict = jsanitize(heterostructure_dict)
+
         db_file = env_chk('>>db_file<<', fw_spec)
         db_type = fw_spec.get('db_type', None)
         conn, database = get_mongo_client(db_file, db_type=db_type)

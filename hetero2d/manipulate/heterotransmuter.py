@@ -282,7 +282,7 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
                 -substrate.lattice.matrix[1, :],
                 mat2d.lattice.matrix[2, :]
             ]))
-    mat2d.modify_lattice(lmap)
+    mat2d.lattice = lmap
     
     ## ensure that the symmetry of the 2d and aligned 2d agree
     if symprec:
