@@ -20,7 +20,7 @@ from fireworks.core.firework import Workflow
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.core import Structure
 
-from hetero2d.firetasks.heteroiface_tasks import _update_spec
+from hetero2d.firetasks.heteroiface_tasks import update_spec
 from hetero2d.firetasks.parse_outputs import HeteroAnalysisToDb
 from hetero2d.fireworks.core import HeteroOptimizeFW, SubstrateSlabFW, GenHeteroStructuresFW, \
     ElectronicFW
@@ -68,7 +68,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
         slab_params (dict): Same parameter format as the TransmuterFW to
             create a substrate slab.
         user_additions (dict): A specification to control the workflow.
-            See firetasks.heteroiface_tasks._update_spec for a detailed list
+            See firetasks.heteroiface_tasks.update_spec for a detailed list
             of parameters.
         bin_2d (str): VASP run command for the VASP version compiled to restrict
             vacuum spacing in z direction from shrinking artifically.
@@ -101,7 +101,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
                                heterotransformation_params[0]['nlayers_sub']})
 
     # spec workflow controls
-    spec = _update_spec(additional_spec=user_additions)
+    spec = update_spec(additional_spec=user_additions)
     # set up the vdw corrections
     vdw = user_additions.pop('vdw', 'optB88')
     # optimization flags
