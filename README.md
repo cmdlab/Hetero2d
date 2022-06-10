@@ -12,8 +12,8 @@ IMPORTANT NOTE: Atomate and FireWorks do not run on Windows OS. You need a unix-
 1. Download the repo from the green code icon or via github's commandline tool gh. 
 - ``gh repo clone cmdlab/Hetero2d`` (gh must be installed)
 - ``git clone https://github.com/cmdlab/Hetero2d.git``
-2. Install Hetero2d in a clean enviromnent using python=3.6. I suggest using Anaconda3 to manange environments. 
-- ``conda create --name hetero2d python=3.6``
+2. Install Hetero2d in a clean enviromnent using python=3.9. I suggest using Anaconda3 to manange environments. 
+- ``conda create --name hetero2d python=3.9``
 3. Activate the Hetero2d environment and run the line below in the Hetero2d directory to install:
 - ``pip install -r requirements.txt``
 4. After installation, Hetero2d needs to be added to your python path. This can be done by running the first line below **OR** by adding the 2nd line listed below to your *.bashrc* file. Only necessary if python cannot find the package or the setup.py failed for some reason.
@@ -23,7 +23,6 @@ IMPORTANT NOTE: Atomate and FireWorks do not run on Windows OS. You need a unix-
 - [atomate](https://atomate.org/)  
 - [FireWorks](https://materialsproject.github.io/fireworks/installation.html)
 - [pymatgen](https://pymatgen.org/installation.html)
-- [MPInterfaces](https://github.com/henniggroup/MPInterfaces)
 6. To run jupyter notebooks on various resources the ipykernel has to be installed. Sometimes this isn't enough and you need explicitly add the kernel to the list of environments. Via the command line:
 - Activate your environment ``conda activate hetero2d``
 - ``python -m ipykernel install --user --name hetero2d``
@@ -36,9 +35,6 @@ The Hetero2d package dependancies have a lot of documentation to look over. I wi
   - `pmg config -p <EXTRACTED_VASP_POTCAR> <MY_PSP>` 
 - Default pseudopotential files from VASP 
   - `pmg config --add PMG_DEFAULT_FUNCTIONAL PBE_54`
-3. *MPInterfaces* a config file similar to pymatgen. You need to set at least 2 parameters in the mpint_config.yaml file. An example config file can be found on the github website.
-  - mp_api: the_key_obtained_from_materialsproject
-  - potentials: path_to_vasp_potcar_files
 
 ## Examples
 To get started using Hetero2d, various tutorials and examples have been created using Jupyter Notebooks. These notebooks demonstrate the basic functionality of Hetero2d to enable users to quickly learn how to use the various modules within this package. These can be found under Hetero2d/examples.

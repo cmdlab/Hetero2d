@@ -3,8 +3,8 @@
 # Distributed under the terms of the GNU License.
 
 """
-These modules parse output from VASP runs, calculate various energetic and structural
-parameters and update a mongoDB with the relevant information.
+These modules parse output from VASP runs, calculate various energetic and structural parameters and update a mongoDB
+with the relevant information.
 """
 
 from __future__ import division, print_function, unicode_literals, absolute_import
@@ -38,9 +38,10 @@ from hetero2d.manipulate.utils import vtotav, decompress
 bader_exe_exists = '/home/tboland1/anaconda3/envs/cms/bin/bader'
 
 __author__ = 'Tara M. Boland'
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
+__date__ = "June 09, 2022"
 
 logger = get_logger(__name__)
 
@@ -94,12 +95,6 @@ class HeteroAnalysisToDb(FiretaskBase):
         # determine what data to insert into the database
         additional_fields = self.get("additional_fields", None) # update additional_fields
         dos, bader, cdd = [self.get(i, False) for i in ['dos','bader','cdd']]
-        ## remove this after manual updates are done
-        #except:
-        #    db_file = self.get('db_file', None) or env_chk('>>db_file<<', fw_spec)
-        #    task_label = self.get("task_label", None) # get task_label
-        #    additional_fields = self.get("additional_fields", None) # update additional_fields
-        #    dos, bader, cdd = [additional_fields.get(i, False) for i in ['dos','bader','cdd']]
 
         # define input to push to mod_spec and stored data
         if re.search("Optimization", task_label):
@@ -338,20 +333,14 @@ def DosBaderTaskDoc(self, fw_spec, task_label, task_collection, dos, bader,
         db_file (str): a string representation for the location of
             the database file.
     """
+    dumpfn(fw_spec,'fw_spec.json')
+    dumpfn(self,'self.json')
     # get directory info
+    calc_dir = os.getcwd()
     if "calc_dir" in self: # passed calc dir
         calc_dir = self["calc_dir"]
     elif self.get("calc_loc"): # find the calc_loc in fw_spec
         calc_dir = get_calc_loc(self["calc_loc"], fw_spec["calc_locs"])["path"]
-
-    ## delete this after done updating bader
-    #elif fw_spec.get('_launch_dir'):
-    #    #print(fw_spec['_launch_dir'])
-    #    calc_dir = fw_spec['_launch_dir']
-    #elif fw_spec.get('launches'):
-    #    if fw_spec['launches'][0].get('launch_dir'):
-    #        #print(fw_spec['launches'][0]['launch_dir'])
-    #        calc_dir = fw_spec['launches'][0]['launch_dir']
 
     # the main taskdoc, the cdd taskdoc, and the dos taskdoc
     store_doc, cdd_dict, dos_dict = {}, {}, {} # store data doc

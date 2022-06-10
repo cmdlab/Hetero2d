@@ -19,10 +19,10 @@ from pymatgen.io.vasp.sets import DictSet, get_vasprun_outcar
 
 
 __author__ = "Tara M. Boland"
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = "tboland1@asu.edu"
-__date__ = "Jan 06, 2020"
+__date__ = "June 09, 2022"
 
 MODULE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -45,30 +45,24 @@ class CMDLRelaxSet(DictSet):
 
 class CMDLInterfaceSet(CMDLRelaxSet):
     """
-    Class for writing a set of interface vasp runs, including the 2D, substrate 
-    slabs, and hetero_interface (oriented along the c direction) as well as the 
-    bulk (3D) phase of the 2D material and the un-oriented unit cells, to ensure 
+    Class for writing a set of interface vasp runs, including the 2D, substrate slabs, and hetero_interface (oriented
+    along the c direction) as well as the bulk (3D) phase of the 2D material and the un-oriented unit cells, to ensure
     the same K_POINTS, POTCAR and INCAR criterion.
 
     Args:
         structure (Structure): The structure for the calculation.
 
     Other Parameters:
-        k_product (int): Default to 20, k_point number x length for a & b directions,
-            also for c direction in bulk calculations.
-        iface (bool): Set to False for initial structure calculations to fully 
-            relax the structures to calculate the adsorption energy of a 2D 
-            material on the substrate slab. Defaults to True.
-        vdw (str): The string representation for the vdW correction functional
-            that will be used for the simulations. Defaults to optB88.
-        auto_dipole (bool): Whether to set dipole corrections. Defaults to
-            False.
-        set_mix (bool): Whether to set the mixing parameters. Defaults to
-            False.
-        sort_structure (bool): Whether to sort the structure. Defaults to
-            False.
-        user_incar_settings (dict): A way to override the default settings
-            for the incar.
+        k_product (int): Default to 20, k_point number x length for a & b directions, also for c direction in bulk
+            calculations.
+        iface (bool): Set to False for initial structure calculations to fully relax the structures to calculate the
+            adsorption energy of a 2D material on the substrate slab. Defaults to True.
+        vdw (str): The string representation for the vdW correction functional that will be used for the simulations.
+            Defaults to optB88.
+        auto_dipole (bool): Whether to set dipole corrections. Defaults to False.
+        set_mix (bool): Whether to set the mixing parameters. Defaults to False.
+        sort_structure (bool): Whether to sort the structure. Defaults to False.
+        user_incar_settings (dict): A way to override the default settings for the incar.
         kwargs: Other kwargs supported by :class:`DictSet`.
 
     Returns:
@@ -127,9 +121,8 @@ class CMDLInterfaceSet(CMDLRelaxSet):
     @property
     def kpoints(self):
         """
-        k_product (default to 20) is the number of k-points * length for a & b
-        directions, also for c direction in bulk calculations. Results in 
-        k_product k-points/Angstrom. Defaults to automatic mesh & Gamma.
+        k_product (default to 20) is the number of k-points * length for a & b directions, also for c direction in bulk
+        calculations. Results in k_product k-points/Angstrom. Defaults to automatic mesh & Gamma.
         """
         kpt = super(CMDLInterfaceSet, self).kpoints
         kpt.comment = "Automatic mesh"
@@ -150,18 +143,16 @@ class CMDLInterfaceSet(CMDLRelaxSet):
 
 class CMDLElectronicSet(CMDLRelaxSet):
     """
-    Class for writing vasp inputs for DOS, bader, and charge density difference
-    runs from previous VASP jobs. Typically, you would use the classmethod
-    from_prev_calc to initialize from a previous SCF run.
+    Class for writing vasp inputs for DOS, bader, and charge density difference runs from previous VASP jobs. Typically,
+    you would use the classmethod from_prev_calc to initialize from a previous SCF run.
 
     Args:
         structure (Structure): The structure for the calculation.
 
     Other Parameters:
-        reciprocal_density (int): For static calculations, we usually set the
-            reciprocal density by volume. This is a convenience arg to change
-            that, rather than using user_kpoints_settings. Defaults to 100,
-            which is ~50% more than that of standard relaxation calculations.
+        reciprocal_density (int): For static calculations, we usually set the reciprocal density by volume. This is a
+            convenience arg to change that, rather than using user_kpoints_settings. Defaults to 100, which is ~50% more
+            than that of standard relaxation calculations.
         force_gamma (bool): Force gamma k-point mesh.
         prev_incar (Incar/string): Incar file from previous run.
         **kwargs: kwargs supported by CMDLRelaxSet.
@@ -214,37 +205,32 @@ class CMDLElectronicSet(CMDLRelaxSet):
                        nbands_factor=1, dos_around_fermi=[4,6], auto_dipole=False,
                        **kwargs):
         """
-        Generate a set of Vasp input files for ElectronicFW calculations from a
-        directory of previous directory.
+        Generate a set of Vasp input files for ElectronicFW calculations from a directory of previous directory.
 
         Args:
-            prev_calc_dir (str): The directory containing the outputs(
-                vasprun.xml and OUTCAR) from the previous vasp run.
+            prev_calc_dir (str): The directory containing the outputs(vasprun.xml and OUTCAR) from the previous vasp
+                run.
 
         Other Parameters:
-            dedos (float): Automatically set nedos using the total energy range
-                which will be divided by the energy step dedos. Default 0.05 eV.
-            grid_density (float): Distance between grid points for the NGXF,Y,Z grids.
-                Defaults to 0.03 Angs; NGXF,Y,Z are ~2x > default. For charge 
-                density difference calculations the parent grid density is used for all
+            dedos (float): Automatically set nedos using the total energy range which will be divided by the energy step
+                dedos. Default 0.05 eV.
+            grid_density (float): Distance between grid points for the NGXF,Y,Z grids. Defaults to 0.03 Angs; NGXF,Y,Z
+                are ~2x > default. For charge density difference calculations the parent grid density is used for all
                 children fireworks.
-            dos (bool): If True, sets INCAR tags for high quality site-orbital projected 
-                density of states. Defaults to True.
+            dos (bool): If True, sets INCAR tags for high quality site-orbital projected density of states. Defaults to
+                True.
             bader (bool): If True, sets INCAR tags to generate bader analysis files. 
-            cdd (bool): If True, ensures the grid density matches between the parent 
-                and child Fireworks. Default set to False.
-            small_gap_multiply ([float, float]): If the gap is less than
-               1st index, multiply the default reciprocal_density by the 2nd
-               index.
-            nbands_factor (float): Multiplicative factor for NBANDS. 
-            dos_around_fermi (bool/list): The element projected density of states is
-                calculated around the fermi level. Default range is [efermi-4, efermi+6].
-                If you want a different range supply a list i.e. [4,6] or False to compute
-                the entire dos range.
-            auto_dipole (bool): Whether to set dipole corrections. Defaults to
+            cdd (bool): If True, ensures the grid density matches between the parent and child Fireworks. Default set to
                 False.
-            **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar
-                and structure which are determined from the prev_calc_dir.
+            small_gap_multiply ([float, float]): If the gap is less than 1st index, multiply the default
+               reciprocal_density by the 2nd index.
+            nbands_factor (float): Multiplicative factor for NBANDS. 
+            dos_around_fermi (bool/list): The element projected density of states is calculated around the fermi level.
+                Default range is [efermi-4, efermi+6]. If you want a different range supply a list i.e. [4,6] or False
+                to compute the entire dos range.
+            auto_dipole (bool): Whether to set dipole corrections. Defaults to False.
+            **kwargs: All kwargs supported by CMDLRelaxSet, other than prev_incar and structure which are determined
+                from the prev_calc_dir.
         """
         vasprun, outcar = get_vasprun_outcar(prev_calc_dir)
 
@@ -267,8 +253,7 @@ class CMDLElectronicSet(CMDLRelaxSet):
         # set dipole corrections
         if auto_dipole:
             weights = [s.species_and_occu.weight for s in structure]
-            center_of_mass = np.average(structure.frac_coords,
-                                        weights=weights, axis=0)
+            center_of_mass = np.average(structure.frac_coords, weights=weights, axis=0)
             incar["IDIPOL"] = 3
             incar["LDIPOL"] = True
             incar["DIPOL"] = ' '.join(str(i) for i in center_of_mass)

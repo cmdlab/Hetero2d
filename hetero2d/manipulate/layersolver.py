@@ -3,8 +3,8 @@
 # Distributed under the terms of the GNU License.
 
 """
-Analyze an existing structure and parse it based on atomic layers. The cutoff can be
-changed but defaults to 0.5 Angstroms. Returns a LayeredStructure dictionary.
+Analyze an existing structure and parse it based on atomic layers. The cutoff can be changed but defaults to 0.5
+Angstroms. Returns a LayeredStructure dictionary.
 """
 import numpy as np
 from copy import deepcopy
@@ -15,10 +15,10 @@ from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
 
 
 __author__ = "Sydney Olson"
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
-__email__ = "snolson1@asu.edu, tboland1@asu.edu"
-__date__ = "June 5, 2020"
+__email__ = "tboland1@asu.edu, snolson1@asu.edu"
+__date__ = "June 9, 2022"
 
 
 def LayerSolver(structure, cutoff=0.5):

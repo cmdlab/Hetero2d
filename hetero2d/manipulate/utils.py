@@ -3,27 +3,19 @@
 # Distributed under the terms of the GNU License.
 
 """
-Useful utilities to view, analyze, and change structures. Some functions are not intended for 
-the user. 
+Useful utilities to view, analyze, and change structures. Some functions are not intended for the user.
 """
 
-import gridfs
-import gzip
-import json
-import math
-import numpy as np
-import os
-import pymongo
-import re
-import sys
-import zlib
+import gridfs, gzip, json, math, os, re, sys, zlib, pymongo, numpy as np
 from copy import deepcopy
+from bson import ObjectId
+from monty.serialization import loadfn, dumpfn
 
 from ase.calculators.vasp import VaspChargeDensity
 from ase.visualize import view
+
 from atomate.vasp.powerups import get_fws_and_tasks
-from bson import ObjectId
-from monty.serialization import loadfn, dumpfn
+
 from pymatgen.analysis.local_env import CrystalNN
 from pymatgen.core import Structure, Lattice, Element
 from pymatgen.core.surface import Slab
@@ -33,26 +25,25 @@ from pymatgen.io.ase import AseAtomsAdaptor
 from hetero2d.manipulate.layersolver import LayerSolver
 
 __author__ = "Tara M. Boland, Arunima Singh"
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = "tboland1@asu.edu"
-__date__ = "June 5, 2020"
+__date__ = "June 10, 2022"
 
 
 ############################
 ### Connection utilities ###
-def get_mongo_client(db_file, db_type=None):
+def get_mongo_client(db_file, db_type = None):
     """
-    Connect to the database using mongoclient. Has multiple
-    connection modes for URI (the url string) and ATLAS credentials.
+    Connect to the database using mongoclient. Has multiple connection modes for URI (the url string) and ATLAS
+    credentials.
 
     Args:
       db_file (str): The db.json file location.
-      db_type (str): String describing the type of connection you are
-        trying to make. Options - ATLAS or URI. For a private MongoDB
-        server, ignore this tag. 
-        
-    Returns: 
+      db_type (str): String describing the type of connection you are trying to make. Options - ATLAS or URI. For a
+        private MongoDB server, ignore this tag.
+
+    Returns:
       client, database_name
     """
     db = loadfn(db_file)
@@ -63,8 +54,8 @@ def get_mongo_client(db_file, db_type=None):
 
     if db_type == None:
         port = db.get('port', 27017)
-        client = pymongo.MongoClient(host=host_name, port=port,
-                                     authsource='admin', username=user_name, password=password)
+        client = pymongo.MongoClient(host=host_name, port=port, authsource='admin', username=user_name,
+                                     password=password)
     elif db_type == 'ATLAS':
         connection_url = "mongodb+srv://" + user_name + ":" + password + "@" + host_name + "/" \
                          + database_name + "?retryWrites=true&w=majority"
@@ -80,13 +71,12 @@ def get_mongo_client(db_file, db_type=None):
 
 def get_dos(client, taskdoc):
     '''
-    Uses the object_id from the task document to search for the dos in gridfs
-    and loads the DOS object into a PMG DOS object. The key get_dos must be
-    true in the task doc or the object does not exist in the gridfs.
+    Uses the object_id from the task document to search for the dos in gridfs and loads the DOS object into a PMG DOS
+    object. The key get_dos must be true in the task doc or the object does not exist in the gridfs.
 
     Args:
-        client (MongoClient Object): The MongoClient connected to the database
-            you are extracting information from to get the dos.
+        client (MongoClient Object): The MongoClient connected to the database you are extracting information from to
+            get the dos.
         taskdoc (dict): The task doc you want to get the DOS for.
 
     Returns:
@@ -110,17 +100,15 @@ def get_dos(client, taskdoc):
 
 ############################################
 ### Post/Pre processing helper functions ###
-def vtotav(chgcar_file, axis='z'):
+def vtotav(chgcar_file, axis = 'z'):
     '''
-    A script which averages a CHGCAR or LOCPOT file in one axis to
-    make a 1D curve. User must specify filename and axis on command
-    line. Depends on ase (converted to 3.6 from ase's vtotav.py
-    python 2.7).
+    A script which averages a CHGCAR or LOCPOT file in one axis to make a 1D curve. User must specify filename and axis
+    on command line. Depends on ase (converted to 3.9 from ase's vtotav.py python 2.7).
 
     Args:
         chgcar (str): Path to the VASP CHGCAR file
         axis (str): Axis to project the charge density onto.
-    
+
     Returns:
         { 'distance' (Ang.), 'chg_density' (projected e/A^3) }
     '''
@@ -184,9 +172,8 @@ def vtotav(chgcar_file, axis='z'):
         else:
             average[ipt] = potl[:, :, ipt].sum()
 
-    # Scale chgcar by size of area element in the plane,
-    # gives unit e/Ang. I.e. integrating the resulting
-    # CHG_dir file should give the total charge.
+    # Scale chgcar by size of area element in the plane, gives unit e/Ang. I.e. integrating the resulting CHG_dir file
+    # should give the total charge.
     area = np.linalg.det([(cell[a, a], cell[a, b]),
                           (cell[b, a], cell[b, b])])
     dA = area / (ngridpts[a] * ngridpts[b])
@@ -205,30 +192,23 @@ def vtotav(chgcar_file, axis='z'):
 
 
 ## Structure Analyzers ##
-def average_z_sep(structure, iface_idx, initial=None):
+def average_z_sep(structure, iface_idx, initial = None):
     '''
-    Get the average z separation distance between 2 
-    layers in a structure. If provided an initial
-    structure the change in the post-adsorbed z 
-    separation distance is calculated. Typically used
-    for 2D-substrate heterostructures in AnalysisToDb.
+    Get the average z separation distance between 2 layers in a structure. If provided an initial structure the change
+    in the post-adsorbed z separation distance is calculated. Typically used for 2D-substrate heterostructures in
+    AnalysisToDb.
 
     Args:
-        structure (Structure): the final structure to
-            analyze.
-        iface_idx (dict): Dictionary containing a list
-            of atom indices for each layer. Computed 
-            using tag_iface.
-            
+        structure (Structure): the final structure to analyze.
+        iface_idx (dict): Dictionary containing a list of atom indices for each layer. Computed using tag_iface.
+
     Other Parameters:
-        initial (Structure): the initial structure prior
-            to DFT optimization.
-            
+        initial (Structure): the initial structure prior to DFT optimization.
+
     Returns:
         z-separation, delta_2d_z
     '''
-    # get the 2d sub separation dist (bot & top atoms) 
-    # define layers for top and bottom
+    # get the 2d sub separation dist (bot & top atoms) define layers for top and bottom
     nlayers = iface_idx['num_2d_layer']
     z = ['sub_layer_1', '2d_layer_1', '2d_layer_' + str(nlayers)]
 
@@ -266,19 +246,14 @@ def average_z_sep(structure, iface_idx, initial=None):
 
 def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     '''
-    Given superlattice structures and original unit cell structures
-    return the number of formula units of the aligned 2d and substrate
-    based on the original substrate and 2d component structures.
-    
+    Given superlattice structures and original unit cell structures return the number of formula units of the aligned
+    2d and substrate based on the original substrate and 2d component structures.
+
     Args:
-        struct_sub (Structure): Unit cell for the substrate structure
-            to be aligned to another structure.
-        struct_2d (Structure): Unit cell for the 2d material to be 
-            aligned to the substrate structure.
-        aligned_sub (Structure): Superlattice for the substrate aligned
-            to the 2d material.
-        aligned_2d (Structure): Superlattice for the 2d material aligned
-            to the substrate structure.
+        struct_sub (Structure): Unit cell for the substrate structure to be aligned to another structure.
+        struct_2d (Structure): Unit cell for the 2d material to be aligned to the substrate structure.
+        aligned_sub (Structure): Superlattice for the substrate aligned to the 2d material.
+        aligned_2d (Structure): Superlattice for the 2d material aligned to the substrate structure.
 
     Returns:
         fu_2d, fu_sub
@@ -301,14 +276,12 @@ def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
     fu_sub = {}
     fu_2d = {}
 
-    # count the number of formula units of the 2d material
-    # in the heteroiface struct
+    # count the number of formula units of the 2d material in the heteroiface struct
     for key in na_unit_2d.keys():
         fu_2d[key] = na_aligned_2d[key] / na_unit_2d[key]
     n_2d = fu_2d[key]
 
-    # get the number of formula units of the substrate
-    # slab in the heteroiface structure
+    # get the number of formula units of the substrate slab in the heteroiface structure
     for key in na_unit_sub.keys():
         fu_sub[key] = na_aligned_sub[key] / na_unit_sub[key]
     n_sub = fu_sub[key]
@@ -318,37 +291,30 @@ def get_fu(struct_sub, struct_2d, sub_aligned, td_aligned):
 
 def center_slab(structure):
     """
-    Centers the atoms in a slab structure around 0.5
-    fractional height.
+    Centers the atoms in a slab structure around 0.5 fractional height.
 
     Args:
         structure (Structure): Structure to center.
-        
-    Returns:
-        Centered Structure object
-    """
 
+    Returns:
+        Structure - Centered Structure object
+    """
     center = np.average([s.frac_coords[2] for s in structure.sites])
     translation = (0, 0, 0.5 - center)
     structure.translate_sites(range(len(structure.sites)), translation)
     return structure
 
 
-def tag_iface(structure, nlayers_2d, nlayers_sub=2):
+def tag_iface(structure, nlayers_2d, nlayers_sub = 2):
     """
-    Find the atom indices in a heterostructure by specifying how many 
-    layers there are for the 2D material. Returns a dictionary of atom
-    ids for each layer of the 2D material and nlayers_sub of the
-    substrate surface.
+    Find the atom indices in a heterostructure by specifying how many layers there are for the 2D material. Returns a
+    dictionary of atom ids for each layer of the 2D material and nlayers_sub of the substrate surface.
 
     Args:
-        structure (Structure): The hetero_interface structure.
-            Should be an unrelaxed structure.
-        nlayers_2d (int): The number of layers contained
-            within the 2d material.
-        nalyers_sub (int): The number of layers of the substrate
-            surface to include in the interface tags.
-            
+        structure (Structure): The hetero_interface structure. Should be an unrelaxed structure.
+        nlayers_2d (int): The number of layers contained within the 2d material.
+        nalyers_sub (int): The number of layers of the substrate surface to include in the interface tags.
+
     Returns:
         layer_indices
     """
@@ -390,23 +356,20 @@ def tag_iface(structure, nlayers_2d, nlayers_sub=2):
 
 def iface_layer_locator(structure, cutoff, iface_elements):
     """
-    Helper function used to locate the iface layers from
-    the layer solver.
+    Helper function used to locate the iface layers from the layer solver.
 
     Args:
-        structure (Structure): input structure to find the
-            interface layers for.
+        structure (Structure): input structure to find the interface layers for.
         cutoff (float): the layer separation cutoff distance.
-        iface_elements (list): A list of element species
-            that compose the top and bottom iface layers.
-            
+        iface_elements (list): A list of element species that compose the top and bottom iface layers.
+
     Returns:
         LayerSolver object, top_layer specie, bottom_layer specie
     """
     sample = LayerSolver(structure, cutoff=cutoff)
     flag = True
 
-    # get the 2d sub separation dist (bot & top atoms) 
+    # get the 2d sub separation dist (bot & top atoms)
     for i in range(0, len(sample) - 2):
         # define layer data
         l1 = sample['Layer' + str(i + 1)]
@@ -425,10 +388,10 @@ def iface_layer_locator(structure, cutoff, iface_elements):
         return None, None, None
 
 
-def atomic_distance(structure, dist=2):
+def atomic_distance(structure, dist = 2):
     """
-    Given a structure and an interatomic separation distance all sites which have a
-    spacing less than dist will be printed out.
+    Given a structure and an interatomic separation distance all sites which have a spacing less than dist will be
+    printed out.
 
     Args:
         structure (Structure): The structure to analyze.
@@ -441,23 +404,20 @@ def atomic_distance(structure, dist=2):
 
 
 ## POSCAR Modifier ##
-def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=2):
+def set_sd_flags(interface = None, n_layers = 2, top = True, bottom = True, lattice_dir = 2):
     """
     Set the relaxation flags for top and bottom layers of interface.
 
-    The upper and lower bounds of the z coordinate are determined
-    based on the slab. All layers above and below the bounds will
-    be relaxed. This means if there is a ligand on top of the slab,
-    all of its atoms will also be relaxed.
+    The upper and lower bounds of the z coordinate are determined based on the slab. All layers above and below the
+    bounds will be relaxed. This means if there is a ligand on top of the slab, all of its atoms will also be relaxed.
 
     Args:
         interface (Structure): input structure file.
         n_layers (int): number of layers to be relaxed.
         top (bool): whether n_layers from top are be relaxed.
         bottom (bool): whether n_layers from bottom are be relaxed.
-        lattice_dir (str): whether to search the a, b, or c axis for
-            layers.
-            
+        lattice_dir (str): whether to search the a, b, or c axis for layers.
+
     Returns:
         sd_flags
     """
@@ -475,31 +435,24 @@ def set_sd_flags(interface=None, n_layers=2, top=True, bottom=True, lattice_dir=
         z_cords_round = [round_decimals_down(i, decimals=4) for i in z_cords_slab]
         z_upper_bound = np.unique(z_cords_round)[-n_layers]
         sd_flags[np.where(z_cords >= z_upper_bound)] = np.ones((1, 3))
-        print('sd_flags', sd_flags)
     return sd_flags.tolist()
 
 
 ## Workflow Modifier ##
-def change_Tasks(original_wf, mode, fw_name_constraint=None,
-                 task_name_constraint='VaspToDb', change_method=None):
+def change_Tasks(original_wf, mode, fw_name_constraint = None, task_name_constraint = 'VaspToDb', change_method = None):
     '''
-    Change the default behavior for task_name_constraint for all fw_name_constraint
-    by changing, removing, or updating the input of the method. Changes must be
-    provided using change_method. This setting will completely overwrite the current
-    method.
-    
+    Change the default behavior for task_name_constraint for all fw_name_constraint by changing, removing, or updating
+    the input of the method. Changes must be provided using change_method. This setting will completely overwrite the
+    current method.
+
     Args:
         original_wf (Workflow): Original workflow to change.
-        mode (str): Mode determines how the VaspToDb method is changed for the
-            workflow. Options are: replace (with new vasptodb method), update 
-            (the current settings for vasptodb method), and remove (vasptodb
-            method from workflow).
-        fw_name_constraint (str): Only apply changes to FWs where fw.name
-            contains this substring. Default set to None.
-        task_name_constraint (str): Name of the Firetasks to be tagged, 
-            Default is 'VaspToDb'.
-        change_method (dict): If update mode, provide a dictionary of 
-            valid arguements for the VaspToDb method in key: value format. 
+        mode (str): Mode determines how the VaspToDb method is changed for the workflow. Options are: replace (with new
+        vasptodb method), update (the current settings for vasptodb method), and remove (vasptodb method from workflow).
+        fw_name_constraint (str): Only apply changes to FWs where fw.name contains this substring. Default set to None.
+        task_name_constraint (str): Name of the Firetasks to be tagged, Default is 'VaspToDb'.
+        change_method (dict): If update mode, provide a dictionary of valid arguements for the VaspToDb method in
+            (key: value) format.
     '''
     idx_list = get_fws_and_tasks(original_wf, fw_name_constraint=fw_name_constraint,
                                  task_name_constraint=task_name_constraint)
@@ -508,7 +461,7 @@ def change_Tasks(original_wf, mode, fw_name_constraint=None,
         for idx_fw, idx_t in idx_list:
             original_wf.fws[idx_fw].tasks[idx_t].update(change_method)
 
-            # update all vasptodb methods given the contrainsts provided
+    # update all vasptodb methods given the contrainsts provided
     if mode == 'update':
         for idx_fw, idx_t in idx_list:
             original_wf.fws[idx_fw].tasks[idx_t].update(change_method)
@@ -523,9 +476,10 @@ def change_Tasks(original_wf, mode, fw_name_constraint=None,
 ## Helper Function ##
 def slurm_set_npar():
     '''
-    Set npar for slurm computing systems. NSLOTS is not valid.
-    
-    Returns sqrt(ncores) or npar = 2
+    Automatically set npar for slurm computing systems given the number of cpu cores requested. NSLOTS is not valid.
+
+    Returns:
+        npar=sqrt(ncores) or npar = 2
     '''
     # set npar looking for ntasks from os.environ: nslots and slurm_cpus_per_task
     # fails on all slurm systems
@@ -535,16 +489,15 @@ def slurm_set_npar():
     ncore_keys = list(np.unique(sum(ncore_keys, [])))
 
     slurm_dict = {key: os.environ[key] for key in ncore_keys}
-    dumpfn(slurm_dict, 'slurm_keys.json')
+    dumpfn(slurm_dict, 'slurm_keys.json')  # help debug issues
 
     for key in ncore_keys:
         if re.search('SLURM_NTASKS', key):
             ncores = int(os.environ[key])
             break
-        # elif re.search('SLURM_JOB_CPUS_ON_NODE',key):
-        #    
-        #    ncores = int(os.environ[key])
-        #    break
+        elif re.search('SLURM_JOB_CPUS_ON_NODE', key):
+            ncores = int(os.environ[key])
+            break
         elif re.search('NSLOTS', key):
             ncores = int(os.environ[key])
             break
@@ -565,12 +518,11 @@ def slurm_set_npar():
 
 def decompress(infile, tofile):
     '''
-    Method to decompress a gzip file. Specify the input file and the output.
-    Leaves the original gzipped file compressed.
+    Method to decompress a gzip file. Specify the input file and the output. Leaves the original gzipped file
+    compressed and creates a new unzipped file.
 
     Args:
-        infile (str): Absolute or relative file path of file to decompress
-            using gzip.
+        infile (str): Absolute or relative file path of file to decompress using gzip.
         tofile (str): Absolute or relative file path of the decompressed file.
     '''
     with open(infile, 'rb') as inf, open(tofile, 'w', encoding='utf8') as tof:
@@ -580,8 +532,10 @@ def decompress(infile, tofile):
 
 def get_FWjson():
     """
-    Helper function which reads the FW.json file in the
-    local directory and returns the FW.json file.
+    Helper function which reads the FW.json file in the local directory and returns the FW.json file.
+
+    Returns:
+        FW.json file
     """
     try:
         with gzip.GzipFile('FW.json.gz', 'r') as p:
@@ -608,7 +562,7 @@ def round_decimals_down(number: float, decimals: int = 2):
 
 
 def get_key(my_dict, val):
-    ''' 
+    '''
     Function returns the key corresponding to a dictionary value.
     '''
     for key, value in my_dict.items():
@@ -619,17 +573,17 @@ def get_key(my_dict, val):
 
 ############################
 ### Conversion Functions ###
-def slab_from_struct(structure, hkl=None):
-    """                                                                         
-    Reads a pymatgen structure object and returns a Slab object. Useful for reading 
-    in 2d/substrate structures from atomate wf's.              
-    
-    Args:                                                                       
-      hkl (list): miller index of the slab in the input file.                       
+def slab_from_struct(structure, hkl = None):
+    """
+    Reads a pymatgen structure object and returns a Slab object. Useful for reading in 2d/substrate structures from
+    atomate wf's.
+
+    Args:
+      hkl (list): miller index of the slab in the input file.
       structure (Structure): structure file in any format supported by pymatgen.
-      
-    Returns:                                                                    
-      Slab structure object                                                            
+
+    Returns:
+      Slab structure object
     """
     if hkl is None:
         hkl = [0, 0, 1]
@@ -650,9 +604,8 @@ def slab_from_struct(structure, hkl=None):
 
 def struct_from_str(string):
     """
-    Given a string serialized pymatgen structure object, return a structure object.
-    Fixes a conversion error when j_sanitizing structure objects not in dictionary
-    format. Probably due to my ignorance.
+    Given a string serialized pymatgen structure object, return a structure object. Fixes a conversion error when
+    j_sanitizing structure objects not in dictionary format. Probably due to my ignorance.
 
     Args:
       string (str): A string representation of a structure object.
@@ -686,9 +639,8 @@ def struct_from_str(string):
 
 def show_struct_ase(structure):
     """
-    Creates a pop up structure model for a pymatgen structure object using ase's
-    viewer. Created for use in jupyter notebooks and might not work over remote
-    access.
+    Creates a pop up structure model for a pymatgen structure object using ase's viewer. Created for use in jupyter
+    notebooks and might not work over remote access.
 
     Args:
       structure (Structure): Structure to show.
@@ -701,39 +653,37 @@ def show_struct_ase(structure):
 
 #########################################
 ### local structure analysis function ###
-# TODO: it would be nice to return bond distance statistics to the user @tboland1
 class nn_site_indices(CrystalNN):
     """
-    This function returns the nearest neighbor atom id's for a
-    given atom id. This function searches from [start,end]
+    This function returns the nearest neighbor atom id's for a given atom id. This function searches from [start,end]
     using the NN variable.
 
     Args:
-        structure (Structure): pymatgen structure object to perform
-            analysis on.
-        NN (list): A list indicating the radius from [start,end] to
-            search for valid anions/cations. This is used to set
-            the search_cutoff which will be given by the end
-            value.
-        target_sites ([int]): A list of atom ids which you want
-            to search around for NN cations/anions. Atom id's can be
+        structure (Structure): pymatgen structure object to perform analysis on.
+        NN (list): A list indicating the radius from [start,end] to search for valid anions/cations. This is used to set
+            the search_cutoff which will be given by the end value.
+        target_sites ([int]): A list of atom ids which you want to search around for NN cations/anions. Atom id's can be
             visualized using ASE.
-        cation_anion (bool): Whether to match anion and cation pairs.
-            Defaults to False.
-        oxi_states (dict): If anion_cation true, provide a dictionary
-            of the oxidation states for each cation/anion species.
-        image (bool): Whether to return data from image cells. Defaults
+        cation_anion (bool): Whether to match anion and cation pairs. Defaults to False.
+        oxi_states (dict): If anion_cation true, provide a dictionary of the oxidation states for each cation/anion
+            species.
+        image (bool): Whether to return data from image cells. Defaults to True.
+        duplicated (bool): Remove duplicated sites and return only the unique site_indices for the structure. Defaults
             to True.
-        duplicated (bool): Remove duplicated sites and return only the
-            unique site_indices for the structure. Defaults to True.
-            
+
     Returns:
-        site_data (dict): A dictionary containing the atom id
-        which was searched around and the corresponding list
-        of NN atom ids of the cation/anions.
+        site_data (dict): A dictionary containing the atom id which was searched around and the corresponding list of NN
+        atom ids of the cation/anions.
     """
 
-    def __init__(self, structure, NN, target_sites, cation_anion=False, oxi_states=None, image=True, duplicate=True,
+    def __init__(self,
+                 structure,
+                 NN,
+                 target_sites,
+                 cation_anion = False,
+                 oxi_states = None,
+                 image = True,
+                 duplicate = True,
                  **kwargs):
         super().__init__(cation_anion)
         if oxi_states is None:
@@ -761,7 +711,7 @@ class nn_site_indices(CrystalNN):
                              self.porous_adjustment, self.search_cutoff,
                              self.fingerprint_length)
 
-    def avg_site_bond_dist(self, bonded_elm=None, return_avg_list=True):
+    def avg_site_bond_dist(self, bonded_elm = None, return_avg_list = True):
         """
         Give the site-dependent bond distance from the target site.
         If return_avg_list is True, an average bond distance is provided
@@ -934,126 +884,3 @@ class nn_site_indices(CrystalNN):
             nn_elms[t_site] = nn_site_elm
 
         return nn_elms
-
-
-def reduced_supercell_vectors(ab, n):
-    """
-    returns all possible reduced in-plane lattice vectors and
-    transition matrices for the given starting unit cell lattice
-    vectors(ab) and the supercell size n
-    """
-    uv_list = []
-    tm_list = []
-    for r_tm in get_trans_matrices(n):
-        for tm in r_tm:
-            uv = get_uv(ab, tm)
-            uv, tm1 = get_reduced_uv(uv, tm)
-            uv_list.append(uv)
-            tm_list.append(tm1)
-    return uv_list, tm_list
-
-
-def get_trans_matrices(n):
-    """
-    yields a list of 2x2 transformation matrices for the
-    given supercell
-    n: size
-    """
-
-    def factors(n0):
-        for i in range(1, n0 + 1):
-            if n0 % i == 0:
-                yield i
-
-    for i in factors(n):
-        m = n // i
-        yield [[[i, j], [0, m]] for j in range(m)]
-
-
-def get_uv(ab, t_mat):
-    """
-    return u and v, the supercell lattice vectors obtained through the
-    transformation matrix
-    """
-    u = np.array(ab[0]) * t_mat[0][0] + np.array(ab[1]) * t_mat[0][1]
-    v = np.array(ab[1]) * t_mat[1][1]
-    return [u, v]
-
-
-def get_reduced_uv(uv, tm):
-    """
-    returns reduced lattice vectors
-    """
-    is_not_reduced = True
-    u = np.array(uv[0])
-    v = np.array(uv[1])
-    tm1 = np.array(tm)
-    u1 = u.copy()
-    v1 = v.copy()
-    while is_not_reduced:
-        if np.dot(u, v) < 0:
-            v = -v
-            tm1[1] = -tm1[1]
-        if np.linalg.norm(u) > np.linalg.norm(v):
-            u1 = v.copy()
-            v1 = u.copy()
-            tm1c = tm1.copy()
-            tm1[0], tm1[1] = tm1c[1], tm1c[0]
-        elif np.linalg.norm(v) > np.linalg.norm(u + v):
-            v1 = v + u
-            tm1[1] = tm1[1] + tm1[0]
-        elif np.linalg.norm(v) > np.linalg.norm(u - v):
-            v1 = v - u
-            tm1[1] = tm1[1] - tm1[0]
-        else:
-            is_not_reduced = False
-        u = u1.copy()
-        v = v1.copy()
-    return [u, v], tm1
-
-
-def get_r_list(area1, area2, max_area, tol=0.02):
-    """
-    returns a list of r1 and r2 values that satisfies:
-    r1/r2 = area2/area1 with the constraints:
-    r1 <= Area_max/area1 and r2 <= Area_max/area2
-    r1 and r2 corresponds to the supercell sizes of the 2 interfaces
-    that align them
-    """
-    r_list = []
-    rmax1 = int(max_area / area1)
-    rmax2 = int(max_area / area2)
-    print('rmax1, rmax2: {0}, {1}\n'.format(rmax1, rmax2))
-    for r1 in range(1, rmax1 + 1):
-        for r2 in range(1, rmax2 + 1):
-            if abs(float(r1) * area1 - float(r2) * area2) / max_area <= tol:
-                r_list.append([r1, r2])
-    return r_list
-
-
-def get_mismatch(a, b):
-    """
-    percentage mistmatch between the lattice vectors a and b
-    """
-    a = np.array(a)
-    b = np.array(b)
-    return np.linalg.norm(b) / np.linalg.norm(a) - 1
-
-
-def get_angle(a, b):
-    """
-    angle between lattice vectors a and b in degrees
-    """
-    a = np.array(a)
-    b = np.array(b)
-    return np.arccos(
-        np.dot(a, b) / np.linalg.norm(a) / np.linalg.norm(b)) * 180 / np.pi
-
-
-def get_area(uv):
-    """
-    area of the parallelogram
-    """
-    a = uv[0]
-    b = uv[1]
-    return np.linalg.norm(np.cross(a, b))

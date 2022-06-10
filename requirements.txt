@@ -5,7 +5,7 @@ seaborn
 ipykernel
 numpy
 FireWorks
-pymatgen
+pymatgen==2022.5.26
 custodian
 atomate
 monty

@@ -3,8 +3,7 @@
 # Distributed under the terms of the GNU License.
 
 """
-This module sets up the vasp input files for the workflow to simulate
-2D materials adsorbed on a substrate slab.
+This module sets up the vasp input files for the workflow to simulate 2D materials adsorbed on a substrate slab.
 """
 from __future__ import division, print_function, unicode_literals, absolute_import
 
@@ -28,9 +27,10 @@ from hetero2d.io import CMDLInterfaceSet
 from hetero2d.manipulate.utils import center_slab, change_Tasks
 
 __author__ = 'Tara M. Boland'
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
+__date__ = "June 09, 2022"
 
 logger = get_logger(__name__)
 
@@ -117,6 +117,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
     bin_3d = bin_3d or VASP_CMD
 
     # 2d symmetry data
+    #@TODO: put unique wyckoff sites for structure
     sga = SpacegroupAnalyzer(struct_2d)
     sg_film = {}
     [sg_film.update({key: sga.get_symmetry_dataset()[key]})
@@ -176,8 +177,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
 
         # VASP calculation controls
         uis_trans = uis if not uis_trans else uis_trans
-        vis_trans = vis_trans or CMDLInterfaceSet(struct_sub,
-                                                  vdw=vdw, iface=True, auto_dipole=dipole,
+        vis_trans = vis_trans or CMDLInterfaceSet(struct_sub, vdw=vdw, iface=True, auto_dipole=dipole,
                                                   user_incar_settings=uis_trans)
 
         # database tags
@@ -194,10 +194,9 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
 
         # optimize substrate slab structure firework
         copy_vasp_outputs = False if is_bulk_optimized else True
-        input_fws.append(SubstrateSlabFW(spec=spec_trans, name=name,
-                                         structure=struct_sub, slab_params=slab_params,
-                                         vasp_input_set=vis_trans, vasp_cmd=bin_3d,
-                                         db_file=DB_FILE, copy_vasp_outputs=copy_vasp_outputs))
+        input_fws.append(SubstrateSlabFW(spec=spec_trans, name=name, structure=struct_sub, slab_params=slab_params,
+                                         vasp_input_set=vis_trans, vasp_cmd=bin_3d, db_file=DB_FILE,
+                                         copy_vasp_outputs=copy_vasp_outputs))
 
         # update links dict
         if not is_bulk_optimized:
@@ -216,8 +215,7 @@ def get_heterostructures_stabilityWF(struct_2d, struct_sub, struct_3d2d, heterot
 
         # VASP calculation controls
         uis_2d = uis if not uis_2d else uis_2d
-        vis_2d = vis_2d or CMDLInterfaceSet(struct_2d,
-                                            auto_dipole=dipole, iface=False, vdw=vdw,
+        vis_2d = vis_2d or CMDLInterfaceSet(struct_2d, auto_dipole=dipole, iface=False, vdw=vdw,
                                             user_incar_settings=uis_2d)
 
         # database tags

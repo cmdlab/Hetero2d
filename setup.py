@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='hetero2d', 
-    version='1.0.0',  
+    version='1.0.1',
     platform='linux',
     description='Automation workflow to simulate the synthesis of two dimensional materials',  
     long_description=long_description,  
@@ -23,10 +23,11 @@ setup(
         'Development Status :: 5 - Production/Stable',
         'Intended Audience :: Academic Research',
         'Topic :: Computational :: DFT :: Automation',
-        'License :: GNU GPL ',
+        'License :: GNU GPL',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3 :: Only',
     ],
 

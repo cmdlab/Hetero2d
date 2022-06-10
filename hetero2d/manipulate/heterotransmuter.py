@@ -3,9 +3,9 @@
 # Distributed under the terms of the GNU License.
 
 """
-These modules are used to create the heterostructure configurations given a 2d and substrate slab.
-The code is adopted from the MPInterfaces to ensure the code is compatible with the FireWorks and 
-atomate architecture, to fix minor bugs in the original code, and return interface matching criteria.
+These modules are used to create the heterostructure configurations given a 2d and substrate slab. The code is adopted
+from the MPInterfaces to ensure the code is compatible with the FireWorks and atomate architecture, to fix minor bugs in
+the original code, and return interface matching criteria.
 """
 
 import numpy as np, sys
@@ -16,89 +16,121 @@ from pymatgen.core import Structure, Lattice
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.analysis.structure_analyzer import SpacegroupAnalyzer
 from pymatgen.core.surface import Slab
-from hetero2d.manipulate.utils import slab_from_struct, get_fu, reduced_supercell_vectors, get_r_list, get_angle, \
-    get_mismatch, get_area
-from hetero2d.manipulate.layersolver import LayerSolver
+
+from hetero2d.manipulate.utils import slab_from_struct, get_fu
 
 __author__ = "Tara M. Boland, Arunima Singh"
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = "tboland1@asu.edu"
-__date__ = "June 5, 2020"
+__date__ = "June 10, 2022"
 
 
-def rotate_to_acute(structure):
+def hetero_interfaces(struct_2d, struct_sub, max_mismatch = 0.01, max_area = 200, nlayers_2d = 3, nlayers_sub = 2,
+                      r1r2_tol = 0.02, max_angle_diff = 1, separation = 3.4, symprec = False):
     """
-    If the angle for a 2D structure is obtuse, reflect the b vector to -b to make it acute.
-    
+    The given the 2D material and the substrate slab, the 2 slabs are combined to generate all possible unique
+    structures for the 2D material on the substrate surface generating all unique_structs hetero_structures.
+
     Args:
-        structure (Structure): structure to rotate.
-    
+        struct_2d: The 2-dimensions slab structure to combine with the substrate slab.
+        struct_sub: The substrate slab structure which the 2D structure will be placed on top of.
+        max_mismatch (float): The maximum allowed lattice strain applied to the struct_2d. Defaults to 0.01, multiply by
+            100 to obtain percent strain.
+        max_area (float): The maximum surface area of the supercell to search for potential lattice matches between
+            struct_2d and struct_sub. Typical values 30-200 Angstroms.
+        max_angle_diff (float): The maximum allowed deviation between the new superlattice and the old lattice a and b
+	        vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)]. Default value 1 degree.
+        r1r2_tol (float): The maximum allowed deviation between the scaled surface area of the 2d and substrate. Typical
+            values range from 0.01 to 0.1.
+        nlayers_2d (int): The number of layers of the 2D materials which you want to relax during the relaxation.
+            Defaults to 3 layers.
+        nlayers_sub (int): The number of layers of the substrate surface which you want to relax during the relaxation.
+            Defaults to 2 layers with bottom layer frozen.
+        separation (float): Separation distance between struct_sub and struct_2d. Default 3.4 Angstroms.
+	    symprec (bool/float): Perform symmetry matching to the specified tolerance for symmetry finding between the
+	        aligned and original 2D structure. Enable if you notice the 2D lattice is disformed. Defaults to False.
+
     Returns:
-        rotated structure
+        Unique hetero_structures list, last entry contains lattice alignment information. Site properties contain iface
+        name.
     """
-    # the new coordinate system basis vectors
-    a_prime = np.array(
-        [
-            structure.lattice.matrix[0, :],
-            -structure.lattice.matrix[1, :],
-            structure.lattice.matrix[2, :]
-        ])
+    struct_2d = deepcopy(struct_2d)
+    struct_sub = deepcopy(struct_sub)
 
-    # the old coordinate system basis vectors
-    a = deepcopy(structure.lattice.matrix.T)
+    # get aligned hetero_structures
+    sub_aligned, td_aligned, alignment_info = aligned_hetero_structures(struct_2d,
+                                                                        struct_sub,
+                                                                        max_area=max_area,
+                                                                        max_mismatch=max_mismatch,
+                                                                        max_angle_diff=max_angle_diff,
+                                                                        r1r2_tol=r1r2_tol,
+                                                                        symprec=symprec)
 
-    # find transformation matrix from basis vectors
-    a_inv = np.linalg.inv(a)
-    p = np.dot(a_inv, a_prime.T)
-    p_inv = np.linalg.inv(p)
-    # apply transformation matrix to coords
-    frac_coords = []
-    species = [site.specie for site in structure.sites]
-    for site in structure.sites:
-        coord = site.frac_coords
-        trans = np.dot(p_inv, coord)
-        frac_coords.append(trans)
+    # exit if the aligned_hetero_structures returns None due to bad symmetry
+    if sub_aligned is None:
+        print('Aligned lattices failed: Rotating struct_2d')
 
-    # create new structure
-    new_structure = Structure(lattice=a_prime, species=species,
-                              coords=frac_coords, coords_are_cartesian=False,
-                              to_unit_cell=True)
+        # rotate struct_2d to acute angle
+        gamma = struct_2d.lattice.gamma
+        if 180 - gamma < gamma:
+            struct_2d = rotate_to_acute(struct_2d)
 
-    return new_structure
+        # get aligned heterostructures
+        sub_aligned, td_aligned, alignment_info = aligned_hetero_structures(struct_2d,
+                                                                            struct_sub,
+                                                                            max_area=max_area,
+                                                                            max_mismatch=max_mismatch,
+                                                                            max_angle_diff=max_angle_diff,
+                                                                            r1r2_tol=r1r2_tol,
+                                                                            symprec=symprec)
 
-def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200,
-                              nlayers_2d=3, nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, 
-                              separation=3.4, symprec=False):
+        # exit if the aligned_hetero_structures returns None due to bad symmetry
+        if sub_aligned is None:
+            print('Rotated aligned lattices failed\n')
+            sys.exit()
+
+    # merge substrate and mat2d in all possible ways these are all the possible structures
+    hetero_interfaces = []
+    h_iface = generate_all_configs(td_aligned, sub_aligned, nlayers_2d=nlayers_2d, nlayers_substrate=nlayers_sub,
+                                   separation=separation)
+
+    # Return only unique structures - remove duplicates
+    matcher = StructureMatcher(stol=0.001, ltol=0.001)
+    matches = matcher.group_structures(h_iface)
+    unique_structs = [matches[i][0] for i in range(len(matches))]
+    unique_count = len(unique_structs)
+    hetero_interfaces.extend(unique_structs)
+
+    # get the formula units for the aligned 2d and substrate
+    fu_2d, fu_sub = get_fu(struct_sub, struct_2d, sub_aligned, td_aligned)
+    alignment_info.update({'fu_2d': fu_2d, 'fu_sub': fu_sub})
+
+    # append the uv and angle mismatch to the interfaces
+    hetero_interfaces.append(alignment_info)
+    return hetero_interfaces
+
+
+def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area=200, nlayers_2d=3, nlayers_sub=2,
+                              r1r2_tol=0.02, max_angle_diff=1, separation=3.4, symprec=False):
     """
-    Given the 2 slab structures and the alignment parameters, return
-    slab structures with lattices that are aligned with respect to each
-    other.
+    Given the 2 slab structures and the alignment parameters, return slab structures with lattices that are aligned with
+    respect to each other.
 
     Args:
         slab_2d (Structure): Two dimensional slab structure object.
         slab_sub (Structure): Substrate slab structure object.
-        max_area (float): The maximum area you want to search for
-            a matching lattice. Defaults to 200 sqr. Angstroms.
-        max_mismatch (float):  The maximum mismatch between the a 
-            and b lattice vectors of the aligned 2D and substrate 
-            lattice vectors. Defaults to 0.01, multiply by 100 to 
-            obtain percent.
-        max_angle_diff (float): The angle deviation between the a and
-            b lattice vectors between the old lattice vectors and the
-            new lattice vectors. Defaults to 1 degree.
-        r1r2_tol (float): Allowed area approximation tolerance for the two
-            lattices. Defaults to 0.02.
-        nlayers_substrate (int): number of substrate layers. Defaults
-            to 2 layers.
-        nlayers_2d (int): number of 2d material layers. Defaults to
-            3 layers.
-        separation (float): separation between the substrate and the 2d
-            material. Defaults to 3.4 angstroms.
-        symprec (bool/float): Perform symmetry matching to the specified 
-            tolerance for symmetry finding between the aligned and
-            original 2D structure. Enable if you notice the 2D lattice is
-            disformed. Defaults to False.
+        max_area (float): The maximum area you want to search for a matching lattice. Defaults to 200 sqr. Angstroms.
+        max_mismatch (float):  The maximum mismatch between the a and b lattice vectors of the aligned 2D and substrate
+            lattice vectors. Defaults to 0.01, multiply by 100 to obtain percent.
+        max_angle_diff (float): The angle deviation between the a and b lattice vectors between the old lattice vectors
+            and the new lattice vectors. Defaults to 1 degree.
+        r1r2_tol (float): Allowed area approximation tolerance for the two lattices. Defaults to 0.02.
+        nlayers_substrate (int): number of substrate layers. Defaults to 2 layers.
+        nlayers_2d (int): number of 2d material layers. Defaults to 3 layers.
+        separation (float): separation between the substrate and the 2d material. Defaults to 3.4 angstroms.
+        symprec (bool/float): Perform symmetry matching to the specified tolerance for symmetry finding between the
+            aligned and original 2D structure. Enable if you notice the 2D lattice is disformed. Defaults to False.
         
     Returns:
         aligned_sub, aligned_2d, alignment_info  
@@ -140,8 +172,7 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
     found = []
     uv1_list, tm1_list, uv2_list, tm2_list = [], [], [], []
 
-    # 4 each lattice vector in r_list reduce the super_lattice vectors
-    # to find new unit cells
+    # 4 each lattice vector in r_list reduce the super_lattice vectors to find new unit cells
     for r1r2 in r_list:
         x1, y1 = reduced_supercell_vectors(ab1, r1r2[0])
         uv1_list.append(x1)
@@ -178,12 +209,8 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
                             mod_angle - min_angle) < 0.001:
                         is_angle_factor = True
                     if angle_mismatch < max_angle_diff or is_angle_factor:
-                        # double check if this i cell reduction params the cell reduction does 
-                        # not take into account atomic positions just cell vectors
-                        #if round(angle_mismatch,2) == round(struct_2d.lattice.gamma,2):
-                        #    found.append((uv1, uv2, min(area1, area2), 
-                        #                  u_mismatch,v_mismatch,angle_mismatch, 
-                        #                  tm1_list[idx][i],tm2_list[idx][j] ))
+                        # double check if this i cell reduction params the cell reduction does not take into account
+                        # atomic positions just cell vectors
                         if angle_mismatch > max_angle_diff:
                             continue
                         elif angle_mismatch < max_angle_diff:
@@ -233,8 +260,7 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
     substrate.make_supercell(scell_sub)
     
     ### Mat2d Lattice Assignment ## 
-    # map the intial slabs to the newly found matching 
-    # lattices to avoid numerical issues with find_mapping
+    # map the intial slabs to the newly found matching  lattices to avoid numerical issues with find_mapping
     mat2d_fake_c = mat2d.lattice.matrix[2,:]/np.linalg.norm(
         mat2d.lattice.matrix[2,:])*5.0
     mat2d_latt = Lattice(np.array(
@@ -283,14 +309,13 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
                 mat2d.lattice.matrix[2, :]
             ]))
     mat2d.lattice = lmap
-    
+
     ## ensure that the symmetry of the 2d and aligned 2d agree
     if symprec:
         sg_mat2d = SpacegroupAnalyzer(mat2d, symprec=symprec)
         sg_align = SpacegroupAnalyzer(struct_2d, symprec=symprec)
     
-        m2d = {}
-        align = {}
+        m2d, align = {}, {}
         [m2d.update({key:sg_mat2d.get_symmetry_dataset()[key]})
             for key in ['number','hall_number','international','hall','pointgroup']]
         [align.update({key:sg_align.get_symmetry_dataset()[key]})
@@ -309,25 +334,19 @@ def aligned_hetero_structures(struct_2d, struct_sub, max_mismatch=0.01, max_area
 
 def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, separation=3.4):
     """
-    For the given lattice matched 2D material and substrate structures, this functions computes all
-    unique (Wyckoff) sites of the mat2d and substrate. The unique sites are iteratively matched 
-    between the mat2d and substrate stacking the unique sites on top of each other separated by the
-    separation distance parameter. This subsequently generates all possible 2d/substrate heterostructure
-    configurations stacked over high symmetry points. All unique structures are returned. To identify
-    the wyckoff sites stacked on top of each other the name is attached to each structure under
-    site_properties.
+    For the given lattice matched 2D material and substrate structures, this functions computes all unique (Wyckoff)
+    sites of the mat2d and substrate. The unique sites are iteratively matched between the mat2d and substrate stacking
+    the unique sites on top of each other separated by the separation distance parameter. This subsequently generates
+    all possible 2d/substrate heterostructure configurations stacked over high symmetry points. All unique structures
+    are returned. To identify the wyckoff sites stacked on top of each other the name is attached to each structure
+    under site_properties.
 
     Args:
-        mat2d (Structure): Lattice and symmetry-matched 2D material 
-            structure.
-        substrate (Structure): Lattice and symmetry-matched 2D 
-            substrate structure.
-        nlayers_substrate (int): number of substrate layers. Defaults 
-            to 2 layers.
-        nlayers_2d (int): number of 2d material layers. Defaults to 
-            3 layers.
-        separation (float): separation between the substrate and the 2d
-            material. Defaults to 3.4 angstroms.
+        mat2d (Structure): Lattice and symmetry-matched 2D material structure.
+        substrate (Structure): Lattice and symmetry-matched 2D substrate structure.
+        nlayers_substrate (int): number of substrate layers. Defaults to 2 layers.
+        nlayers_2d (int): number of 2d material layers. Defaults to 3 layers.
+        separation (float): separation between the substrate and the 2d material. Defaults to 3.4 angstroms.
     
     Returns:
         list of hetero_interface configurations 
@@ -356,10 +375,8 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
     origin = np.array([0, 0, substrate_top_z])
     shift_normal = surface_normal / np.linalg.norm(surface_normal) * separation
 
-    # generate all possible interfaces, one for each combination of
-    # unique substrate and unique 2d materials site in the layers .i.e
-    # an interface structure for each parallel shift
-    # interface = 2D material + substrate    
+    # generate all possible interfaces, one for each combination of unique substrate and unique 2d materials site in the
+    # layers .i.e an interface structure for each parallel shift interface = 2D material + substrate
     hetero_interfaces = []
     for coord_i, sub_idx in zip(coords_uniq_sub, uniq_sub_idx):
         for coord_j, td_idx in zip(coords_uniq_2d, uniq_2d_idx):
@@ -377,8 +394,10 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
             shift_parallel[2] = 0
             # x,y coords shfited by shift_parallel, z by separation
             shift_net = shift_normal - shift_parallel
+
             # add 2d mat to substrate with shifted coords
-            for idx, site in enumerate(mat2d):
+            mat2d2=deepcopy(mat2d)
+            for idx, site in enumerate(mat2d2):
                 new_coords = site.coords  # xyz coords of 2d site
                 # place 2d above substrate (z-dir change only)
                 new_coords[2] = site.coords[2] - mat_2d_bottom
@@ -390,110 +409,10 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
 
     return hetero_interfaces
 
-def hetero_interfaces(struct_2d, struct_sub, max_mismatch=0.01, max_area=200, nlayers_2d=3,
-                      nlayers_sub=2, r1r2_tol=0.02, max_angle_diff=1, separation=3.4,
-                      symprec=False):
-    """
-    The given the 2D material and the substrate slab, the 2 slabs are
-    combined to generate all possible unique structures for the
-    2D material on the substrate surface generating all unique
-    hetero_structures.
-
-    Args:
-        struct_2d: The 2-dimensions slab structure to combine with
-            the substrate slab.
-        struct_sub: The substrate slab structure which the 2D
-            structure will be placed on top of.
-        max_mismatch (float): The maximum allowed lattice strain applied
-            to the struct_2d. Defaults to 0.01, multiply by 100 to obtain 
-            percent strain.
-        max_area (float): The maximum surface area of the supercell to 
-            search for potential lattice matches between struct_2d and 
-	    struct_sub. Typical values 30-200 Angstroms.
-        max_angle_diff (float): The maximum allowed deviation 
-	    between the new superlattice and the old lattice a and b
-	    vectors. Angle between a and b vectors: arccos[a.b/(|a||b|)].
-	    Default value 1 degree.
-        r1r2_tol (float): The maximum allowed deviation between the 
-	    scaled surface area of the 2d and substrate. Typical values
-	    range from 0.01 to 0.1. 
-        nlayers_2d (int): The number of layers of the 2D materials
-            which you want to relax during the relaxation. Defaults
-            to 3 layers.
-        nlayers_sub (int): The number of layers of the substrate surface
-            which you want to relax during the relaxation. Defaults
-            to 2 layers with bottom layer frozen.
-        separation (float): Separation distance between struct_sub
-            and struct_2d. Default 3.4 Angstroms.
-	symprec (bool/float): Perform symmetry matching to the specified 
-            tolerance for symmetry finding between the aligned and
-            original 2D structure. Enable if you notice the 2D lattice is
-            disformed. Defaults to False.
-    
-    Returns:
-        Unique hetero_structures list, last entry contains lattice alignment
-        information. Site properties contain iface name.
-    """
-    struct_2d = deepcopy(struct_2d)
-    struct_sub = deepcopy(struct_sub)
-
-    # get aligned hetero_structures
-    sub_aligned, td_aligned, alignment_info = aligned_hetero_structures(struct_2d, 
-                                                                        struct_sub, 
-                                                                        max_area=max_area, 
-                                                                        max_mismatch=max_mismatch,
-                                                                        max_angle_diff=max_angle_diff, 
-                                                                        r1r2_tol=r1r2_tol,
-                                                                        symprec=symprec)
-
-    # exit if the aligned_hetero_structures returns None due to bad symmetry
-    if sub_aligned is None:
-        print('Aligned lattices failed: Rotating struct_2d')
-        
-        # rotate struct_2d to acute angle
-        gamma = struct_2d.lattice.gamma
-        if 180-gamma < gamma:
-            struct_2d = rotate_to_acute(struct_2d)
-
-        # get aligned heterostructures
-        sub_aligned, td_aligned, alignment_info = aligned_hetero_structures(struct_2d, 
-                                                                            struct_sub,
-                                                                            max_area=max_area, 
-                                                                            max_mismatch=max_mismatch,
-                                                                            max_angle_diff=max_angle_diff, 
-                                                                            r1r2_tol=r1r2_tol,
-                                                                            symprec=symprec)
-        
-        # exit if the aligned_hetero_structures returns None due to bad symmetry
-        if sub_aligned is None:
-            print('Rotated aligned lattices failed\n')
-            sys.exit()
-
-    # merge substrate and mat2d in all possible ways
-    # these are all the possible structures
-    hetero_interfaces = []
-    h_iface = generate_all_configs(td_aligned, sub_aligned, nlayers_2d=nlayers_2d, nlayers_substrate=nlayers_sub,
-                                   separation=separation)
-
-    # Return only unique structures - remove duplicates
-    matcher = StructureMatcher(stol=0.001, ltol=0.001)
-    matches = matcher.group_structures(h_iface)
-    unique_structs = [matches[i][0] for i in range(len(matches))]
-    unique_count = len(unique_structs)
-    hetero_interfaces.extend(unique_structs)
-    
-    # get the formula units for the aligned 2d and substrate
-    fu_2d, fu_sub = get_fu(struct_sub, struct_2d, sub_aligned, td_aligned)
-    alignment_info.update({'fu_2d': fu_2d, 'fu_sub': fu_sub})
-
-    # append the uv and angle mismatch to the interfaces
-    hetero_interfaces.append(alignment_info)
-    return hetero_interfaces
 
 def get_uniq_layercoords(struct, nlayers, top=True):
     """
-    Returns the coordinates and indices of unique sites in the top or bottom
-    nlayers of the given structure.
+    Returns the coordinates and indices of unique sites in the top or bottom nlayers of the given structure.
 
     Args:
         struct (Structure): Input structure.
@@ -516,8 +435,7 @@ def get_uniq_layercoords(struct, nlayers, top=True):
     indices_layers = np.argwhere(zfilter).ravel()
     sa = SpacegroupAnalyzer(struct)
     symm_data = sa.get_symmetry_dataset()
-    # equivalency mapping for the structure
-    # i'th site in the struct equivalent to eq_struct[i]'th site
+    # equivalency mapping for the structure i'th site in the struct equivalent to eq_struct[i]'th site
     eq_struct = symm_data["equivalent_atoms"]
     # equivalency mapping for the layers
     eq_layers = eq_struct[indices_layers]
@@ -528,13 +446,54 @@ def get_uniq_layercoords(struct, nlayers, top=True):
     # coordinates of the unique atoms in the layers
     return coords[indices_uniq], indices_uniq
 
+
+def rotate_to_acute(structure):
+    """
+    If the angle for a 2D structure is obtuse, reflect the b vector to -b to make it acute.
+
+    Args:
+        structure (Structure): structure to rotate.
+
+    Returns:
+        rotated structure
+    """
+    # the new coordinate system basis vectors
+    a_prime = np.array(
+        [
+            structure.lattice.matrix[0, :],
+            -structure.lattice.matrix[1, :],
+            structure.lattice.matrix[2, :]
+        ])
+
+    # the old coordinate system basis vectors
+    a = deepcopy(structure.lattice.matrix.T)
+
+    # find transformation matrix from basis vectors
+    a_inv = np.linalg.inv(a)
+    p = np.dot(a_inv, a_prime.T)
+    p_inv = np.linalg.inv(p)
+    # apply transformation matrix to coords
+    frac_coords = []
+    species = [site.specie for site in structure.sites]
+    for site in structure.sites:
+        coord = site.frac_coords
+        trans = np.dot(p_inv, coord)
+        frac_coords.append(trans)
+
+    # create new structure
+    new_structure = Structure(lattice=a_prime, species=species, coords=frac_coords, coords_are_cartesian=False,
+                              to_unit_cell=True)
+
+    return new_structure
+
+
 def remove_duplicates(uv_list, tm_list):
     """
     Remove duplicates based on a, b, alpha matching. Helper function.
     
     Args:
     	uv_list (list): the a and b lattice vectors to transform.
-	tm_list (list): a list of transformation matrices.
+	    tm_list (list): a list of transformation matrices.
 	
     Returns: 
     	new_uv_list, new_tm_list
@@ -556,3 +515,171 @@ def remove_duplicates(uv_list, tm_list):
         new_uv_list.append(unq_sup_lat)
         new_tm_list.append(unq_tm)
     return new_uv_list, new_tm_list
+
+
+def reduced_supercell_vectors(ab, n):
+    """
+    Obtain all possible reduced in-plane lattice vectors and transition matrices for the given starting unit cell
+    lattice vectors (ab) and the supercell size n.
+
+    Args:
+        ab ():
+        n (int):
+
+    Returns:
+        uv_list (3xn list) in-plane lattice vectors, tm_list
+        ([2x2]xn list) transition matrices
+    """
+    uv_list = []
+    tm_list = []
+    for r_tm in get_trans_matrices(n):
+        for tm in r_tm:
+            uv = get_uv(ab, tm)
+            uv, tm1 = get_reduced_uv(uv, tm)
+            uv_list.append(uv)
+            tm_list.append(tm1)
+    return uv_list, tm_list
+
+
+def get_trans_matrices(n):
+    """
+    Yields a list of 2x2 transformation matrices for the given supercell.
+
+    Args:
+        n (list): size.
+
+    Returns:
+        2x2 transformation matrics
+    """
+
+    def factors(n0):
+        for i in range(1, n0 + 1):
+            if n0 % i == 0:
+                yield i
+
+    for i in factors(n):
+        m = n // i
+        yield [[[i, j], [0, m]] for j in range(m)]
+
+
+def get_uv(ab, t_mat):
+    """
+    Apply the transformation matrix to lattice vectors to obtain the new u and v supercell lattice vectors.
+
+    Args:
+        ab (list): The original lattice vectors to apply the transformation matrix.
+        t_mat (list): The transformation matrices returned by get_trans_matrices.
+
+    Returns:
+        [u,v] - the supercell lattice vectors
+    """
+    u = np.array(ab[0]) * t_mat[0][0] + np.array(ab[1]) * t_mat[0][1]
+    v = np.array(ab[1]) * t_mat[1][1]
+    return [u, v]
+
+
+def get_reduced_uv(uv, tm):
+    """
+    Reduce the lattice vectors to remove equivalent lattices.
+
+    Args:
+        uv ():
+        tm ():
+
+    Returns:
+         [u, v], tm1 - reduced lattice vectors and associated transformation matrix
+    """
+    is_not_reduced = True
+    u = np.array(uv[0])
+    v = np.array(uv[1])
+    tm1 = np.array(tm)
+    u1 = u.copy()
+    v1 = v.copy()
+    while is_not_reduced:
+        if np.dot(u, v) < 0:
+            v = -v
+            tm1[1] = -tm1[1]
+        if np.linalg.norm(u) > np.linalg.norm(v):
+            u1 = v.copy()
+            v1 = u.copy()
+            tm1c = tm1.copy()
+            tm1[0], tm1[1] = tm1c[1], tm1c[0]
+        elif np.linalg.norm(v) > np.linalg.norm(u + v):
+            v1 = v + u
+            tm1[1] = tm1[1] + tm1[0]
+        elif np.linalg.norm(v) > np.linalg.norm(u - v):
+            v1 = v - u
+            tm1[1] = tm1[1] - tm1[0]
+        else:
+            is_not_reduced = False
+        u = u1.copy()
+        v = v1.copy()
+    return [u, v], tm1
+
+
+def get_r_list(area1, area2, max_area, tol = 0.02):
+    """
+    returns a list of r1 and r2 values that satisfies:
+    r1/r2 = area2/area1 with the constraints:
+    r1 <= Area_max/area1 and r2 <= Area_max/area2
+    r1 and r2 corresponds to the supercell sizes of the 2 interfaces
+    that align them
+    """
+    r_list = []
+    rmax1 = int(max_area / area1)
+    rmax2 = int(max_area / area2)
+    print('rmax1, rmax2: {0}, {1}\n'.format(rmax1, rmax2))
+    for r1 in range(1, rmax1 + 1):
+        for r2 in range(1, rmax2 + 1):
+            if abs(float(r1) * area1 - float(r2) * area2) / max_area <= tol:
+                r_list.append([r1, r2])
+    return r_list
+
+
+def get_mismatch(a, b):
+    """
+    Compute the percent mistmatch between the lattice vectors a and b.
+
+    Args:
+        a (list): A 3x1 list representing the 'a' lattice vector.
+        b (list): A 3x1 list representing the 'b' lattice vector.
+
+    Returns:
+        mismatch (float) - percent mismatch between lattice vector a and b
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.linalg.norm(b) / np.linalg.norm(a) - 1
+
+
+def get_angle(a, b):
+    """
+    Compute the angle between lattice vectors a and b in degrees.
+
+    Args:
+        a (list): A 3x1 list representing the 'a' lattice vector.
+        b (list): A 3x1 list representing the 'b' lattice vector.
+
+    Returns:
+        angle (float) - angle between lattice vector a and b
+
+    """
+    a = np.array(a)
+    b = np.array(b)
+    return np.arccos(
+        np.dot(a, b) / np.linalg.norm(a) / np.linalg.norm(b)) * 180 / np.pi
+
+
+def get_area(uv):
+    """
+    Compute the area enclosed by the uv vectors using the formula of a parallelogram.
+
+    Args:
+        uv (list): A 3x2 list representing the 'u' and 'v' lattice vectors.
+
+    Returns:
+        area (float) - area in units of the lattice vectors.
+    """
+    a = uv[0]
+    b = uv[1]
+    return np.linalg.norm(np.cross(a, b))

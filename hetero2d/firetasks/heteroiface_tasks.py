@@ -27,9 +27,10 @@ from six.moves import range
 from hetero2d.manipulate.utils import get_mongo_client
 
 __author__ = 'Tara M. Boland'
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
+__date__ = "June 09, 2022"
 
 logger = get_logger(__name__)
 

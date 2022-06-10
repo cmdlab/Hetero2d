@@ -3,9 +3,8 @@
 # Distributed under the terms of the GNU License.
 
 """
-These classes implements various fireworks needed to compute the thermodynamic
-stability, electronic properties, and structural transformations of 2D thin films
-substrates, and adsorbed 2D films on a substrate slab surface.
+These classes implements various fireworks needed to compute the thermodynamic stability, electronic properties, and
+structural transformations of 2D thin films substrates, and adsorbed 2D films on a substrate slab surface.
 """
 
 from __future__ import division, print_function, unicode_literals, absolute_import
@@ -30,56 +29,45 @@ from hetero2d.firetasks.write_inputs import WriteHeteroStructureIOSet, WriteSlab
 from hetero2d.io import CMDLInterfaceSet
 
 __author__ = 'Tara M. Boland'
-__copyright__ = "Copyright 2020, CMD Lab"
+__copyright__ = "Copyright 2022, CMD Lab"
 __maintainer__ = "Tara M. Boland"
 __email__ = 'tboland1@asu.edu'
+__date__ = "June 09, 2022"
 
 logger = get_logger(__name__)
 
 # custom error handler
-from custodian.vasp.handlers import VaspErrorHandler, MeshSymmetryErrorHandler,\
-    UnconvergedErrorHandler, NonConvergingErrorHandler, PositiveEnergyErrorHandler, \
-    FrozenJobErrorHandler, StdErrHandler
+from custodian.vasp.handlers import VaspErrorHandler, MeshSymmetryErrorHandler, UnconvergedErrorHandler, \
+    NonConvergingErrorHandler, PositiveEnergyErrorHandler, FrozenJobErrorHandler, StdErrHandler
 subset = list(VaspErrorHandler.error_msgs.keys())
 subset.remove('brions')
-handler = [VaspErrorHandler(errors_subset_to_catch=subset), MeshSymmetryErrorHandler(),
-           UnconvergedErrorHandler(), NonConvergingErrorHandler(),
-           PositiveEnergyErrorHandler(), FrozenJobErrorHandler(), StdErrHandler()]
+handler = [VaspErrorHandler(errors_subset_to_catch=subset), MeshSymmetryErrorHandler(), UnconvergedErrorHandler(),
+           NonConvergingErrorHandler(), PositiveEnergyErrorHandler(), FrozenJobErrorHandler(), StdErrHandler()]
 
 class HeteroOptimizeFW(Firework):
-    def __init__(self, spec, structure, name="Structure Optimization",
-                 vasp_input_set=None, user_incar_settings=None, vasp_cmd=VASP_CMD,
-                 ediffg=None, db_file=DB_FILE, force_gamma=True, parents=None,
+    def __init__(self, spec, structure, name="Structure Optimization", vasp_input_set=None, user_incar_settings=None,
+                 vasp_cmd=VASP_CMD, ediffg=None, db_file=DB_FILE, force_gamma=True, parents=None,
                  job_type="double_relaxation_run", max_force_threshold=RELAX_MAX_FORCE,
-                 half_kpts_first_relax=HALF_KPOINTS_FIRST_RELAX, auto_npar=">>auto_npar<<",
-                 **kwargs):
+                 half_kpts_first_relax=HALF_KPOINTS_FIRST_RELAX, auto_npar=">>auto_npar<<", **kwargs):
         """
-        Optimize the given structure with additional tags for the
-        heterostructure workflow.
+        Optimize the given structure with additional tags for the heterostructure workflow.
 
         Args:
             structure (Structure): Input structure.
-            spec (dict): The specification parameters used to control the
-                workflow and pass variables.
+            spec (dict): The specification parameters used to control the workflow and pass variables.
 
         Other Parameters:
             name (str): Name for the Firework.
-            user_incar_settings (dict): Input settings to update the settings
-                for the vasp input set.
-            vasp_input_set (VaspInputSet): input set to use. Defaults to
-                CMDLInterfaceSet() if None.
+            user_incar_settings (dict): Input settings to update the settings for the vasp input set.
+            vasp_input_set (VaspInputSet): input set to use. Defaults to CMDLInterfaceSet() if None.
             vasp_cmd (str): Command to run vasp.
             ediffg (float): Shortcut to set ediffg in certain jobs.
-            db_file (str): Path to file specifying db credentials to place output
-                parsing.
+            db_file (str): Path to file specifying db credentials to place output parsing.
             force_gamma (bool): Force gamma centered kpoint generation.
             job_type (str): custodian job type (default "double_relaxation_run").
-            max_force_threshold (float): max force on a site allowed at end; otherwise,
-                reject job.
-            auto_npar (bool or str): whether to set auto_npar. defaults to env_chk:
-                ">>auto_npar<<".
-            half_kpts_first_relax (bool): whether to use half the kpoints for the first
-                relaxation.
+            max_force_threshold (float): max force on a site allowed at end; otherwise, reject job.
+            auto_npar (bool or str): whether to set auto_npar. defaults to env_chk: ">>auto_npar<<".
+            half_kpts_first_relax (bool): whether to use half the kpoints for the first relaxation.
             parents ([Firework]): Parents of this particular Firework.
             kwargs: Other kwargs that are passed to Firework.__init__.
         """
@@ -91,9 +79,8 @@ class HeteroOptimizeFW(Firework):
                                                             vdw='optB88', iface=True)
 
         if vasp_input_set.incar["ISIF"] in (0, 1, 2, 7) and job_type == "double_relaxation":
-            warnings.warn(
-                "A double relaxation run might not be appropriate with ISIF {}".format(
-                    vasp_input_set.incar["ISIF"]))
+            warnings.warn("A double relaxation run might not be appropriate with ISIF {}".format(
+                vasp_input_set.incar["ISIF"]))
         t = [WriteVaspFromIOSet(structure=structure, vasp_input_set=vasp_input_set),
              RunVaspCustodian(handler_group=handler, vasp_cmd=vasp_cmd,
                               job_type=job_type, ediffg=ediffg, max_force_threshold=max_force_threshold,
@@ -109,48 +96,36 @@ class HeteroOptimizeFW(Firework):
                                                name=name, **kwargs)
 
 class SubstrateSlabFW(Firework):
-    def __init__(self, spec, structure, slab_params, vasp_input_set=None,
-                 user_incar_settings=None, prev_calc_dir=None, vasp_cmd=">>vasp_cmd<<",
-                 name="Slab Structure Optimization", copy_vasp_outputs=True, db_file=None,
+    def __init__(self, spec, structure, slab_params, vasp_input_set=None, user_incar_settings=None, prev_calc_dir=None,
+                 vasp_cmd=">>vasp_cmd<<", name="Slab Structure Optimization", copy_vasp_outputs=True, db_file=None,
                  parents=None, **kwargs):
         """
-        Apply the transformations to the bulk structure, write the slab
-        set corresponding to the transformed structure, and run vasp.  Note
-        that if a transformation yields many structures from one, only the
-        last structure in the list is used. By default all structures will
-        have selective dynamics tags as one of the transformations applied
-        to the input structure.
+        Apply the transformations to the bulk structure, write the slab set corresponding to the transformed structure,
+        and run vasp. Note that if a transformation yields many structures from one, only the last structure in the list
+        is used. By default all structures will have selective dynamics tags as one of the transformations applied to
+        the input structure.
 
         Args:
             name (string): Name for the Firework.
-            spec (dict): The specification parameters used to control the
-                workflow and pass variables.
-            structure (Structure): Bulk input structure to apply transformations
-                onto.
-            slab_params (dict): A dictionary containing a list of transformations
-                and transformation_params to generate the substrate slab
-                structure for the hetero_interface.
-                Example: slab_params = {'transformations': ['SlabTransformation',
-                'AddSitePropertyTransformation'],'transformation_params': [{},{}]}.
-                Definitions: transformations (list): list of names of transformation
-                classes as defined in the modules in pymatgen.transformations.
-                transformation_params (list): list of dicts where each dict specify
-                the input parameters to instantiate the transformation
-                class in the transformations list.
+            spec (dict): The specification parameters used to control the workflow and pass variables.
+            structure (Structure): Bulk input structure to apply transformations onto.
+            slab_params (dict): A dictionary containing a list of transformations and transformation_params to generate
+                the substrate slab structure for the hetero_interface.
+                Example: slab_params = {'transformations': ['SlabTransformation', 'AddSitePropertyTransformation'],
+                'transformation_params': [{},{}]}. Definitions: transformations (list): list of names of transformation
+                classes as defined in the modules in pymatgen.transformations. transformation_params (list): list of
+                dicts where each dict specify the input parameters to instantiate the transformation class in the
+                transformations list.
 
         Other Parameters:
-            user_incar_settings (dict): VASP INCAR settings to override default settings
-                for the vasp input set.
-            vasp_input_set (VaspInputSet): VASP input set, used to write the
-                input set for the transmuted structure. Defaults to
-                CMDLInterfaceSet.
+            user_incar_settings (dict): VASP INCAR settings to override default settings for the vasp input set.
+            vasp_input_set (VaspInputSet): VASP input set, used to write the input set for the transmuted structure.
+                Defaults to CMDLInterfaceSet.
             vasp_cmd (string): Command to run vasp.
-            copy_vasp_outputs (bool): Whether to copy outputs from previous
-                run. Defaults to True.
+            copy_vasp_outputs (bool): Whether to copy outputs from previous run. Defaults to True.
             prev_calc_dir (str): Path to a previous calculation to copy from.
             db_file (string): Path to file specifying db credentials.
-            parents (Firework): Parents of this particular Firework. FW or
-                list of FWs.
+            parents (Firework): Parents of this particular Firework. FW or list of FWs.
             kwargs: Other kwargs that are passed to Firework.__init__.
         """
         fw_name = "{}: {}".format(structure.composition.reduced_formula, name)  # task_label
@@ -198,45 +173,35 @@ class SubstrateSlabFW(Firework):
                                         "transmuter_input": {"transformations": transformations,
                                                              "transformation_params": transformation_params}
                                     }))
-        super(SubstrateSlabFW, self).__init__(t, spec=spec, parents=parents,
-                                              name=fw_name, **kwargs)
+        super(SubstrateSlabFW, self).__init__(t, spec=spec, parents=parents, name=fw_name, **kwargs)
 
 class GenHeteroStructuresFW(Firework):
-    def __init__(self, spec, structure, heterotransformation_params,
-                 vasp_input_set=None, user_incar_settings=None, prev_calc_dir=None,
-                 name="Generate Heterostructures", vasp_cmd=">>vasp_cmd<<",
-                 db_file=">>db_file<<", copy_vasp_outputs=False,
-                 parents=None, **kwargs):
+    def __init__(self, spec, structure, heterotransformation_params, vasp_input_set=None, user_incar_settings=None,
+                 prev_calc_dir=None, name="Generate Heterostructures", vasp_cmd=">>vasp_cmd<<", db_file=">>db_file<<",
+                 copy_vasp_outputs=False, parents=None, **kwargs):
         """
-        Apply transformations to 2D material and substrate slab to generate
-        fireworks that create and relax hetero_interface structures using
-        vdW corrections. Note: If the transformation produces many from
-        one, all structures are simulated.
+        Apply transformations to 2D material and substrate slab to generate fireworks that create and relax
+        hetero_interface structures using vdW corrections. Note: If the transformation produces many from one, all
+        structures are simulated.
 
         Args:
             spec (dict): Specification of the job to run.
             structure (Structure): 2D material to align onto the substrate.
-            hetero_transformation_params (dict): dictionary containing the
-                input to control the hetero2d.manipulate.hetero_transmuter
-                modules.
-            transformations (list): list of transformations to apply
-                to the structure as defined in the modules in hetero2d.manipulate module.
-            transformation_params (list): list of dicts where each dict specifies
-                the input parameters to instantiate the transformation class in the
-                transformations list. Example: h_params={'transformations':
-                ['hetero_interfaces'], 'transformation_params':[{hetero_interface parameters
-                dictionary}]}.
+            hetero_transformation_params (dict): dictionary containing the input to control the
+                hetero2d.manipulate.hetero_transmuter modules.
+            transformations (list): list of transformations to apply to the structure as defined in the modules in
+                hetero2d.manipulate module.
+            transformation_params (list): list of dicts where each dict specifies the input parameters to instantiate
+                the transformation class in the transformations list. Example: h_params={'transformations':
+                ['hetero_interfaces'], 'transformation_params':[{hetero_interface parameters dictionary}]}.
 
         Other Parameters:
-            user_incar_settings (dict): Input settings to update the settings
-                for the vasp input set.
-            vasp_input_set (VaspInputSet): VASP input set, used to write the
-                input set for the transmuted structure. Defaults to CMDLInterfaceSet.
-            name (string): Name for the Firework. Default is "Generate
-                HeteroStructures {2D}-on-{Substrate} {unique_id}".
+            user_incar_settings (dict): Input settings to update the settings for the vasp input set.
+            vasp_input_set (VaspInputSet): VASP input set, used to write the input set for the transmuted structure.
+                Defaults to CMDLInterfaceSet.
+            name (string): Name for the Firework. Default is "Generate HeteroStructures {2D}-on-{Substrate} {unique_id}".
             vasp_cmd (string): Command to run vasp.
-            copy_vasp_outputs (bool): Whether to copy outputs from the previous run.
-                Defaults to False.
+            copy_vasp_outputs (bool): Whether to copy outputs from the previous run. Defaults to False.
             prev_calc_dir (str): Path to a previous calculation to copy data from.
             db_file (string): Path to file specifying db credentials.
             parents (Firework): Parents of this particular Firework. FW or list of FWS.
@@ -297,29 +262,24 @@ class HeteroStructuresFW(Firework):
                  copy_vasp_outputs=False, prev_calc_dir=None,
                  parents=None, **kwargs):
         """
-        Relax the hetero_structures generated by CreateHeterostructureTask
-        and perform various energetic analyses to store in the database.
+        Relax the hetero_structures generated by CreateHeterostructureTask and perform various energetic analyses to
+        store in the database.
 
         Args:
-            spec (dict): The specification dictionary used to control the
-                firework analysis. Spec file boolean triggers default to True
-                resulting in Binding_Energy and Adsorption_Energy being calculated.
-                If you wish to skip this, specify in user_addition.
+            spec (dict): The specification dictionary used to control the firework analysis. Spec file boolean triggers
+                default to True resulting in Binding_Energy and Adsorption_Energy being calculated. If you wish to skip
+                this, specify in user_addition.
             structure (Slab): Heterostructure slab structure.
 
         Other Parameters:
-            transformation (dict): The list of dictionaries containing the
-                input used to create the hetero_interfaces. Defaults to none.
-            name (str): The name for this firework. Defaults to wf_name +
-                heterostructure optimization (used as the fw_name).
-            transformation (dict): transformation parameters used to create
-                the heterostructure.
-            user_incar_settings (dict): Input settings to update the settings
-                for the vasp input set.
-            vasp_input_set (VaspInputSet): VASP input set for the transformed
-                2d on sub-slab. Default CMDLInterfaceSet.
-            prev_calc_dir: path to previous calculation if using structure
-                from another calculation.
+            transformation (dict): The list of dictionaries containing the input used to create the hetero_interfaces.
+                Defaults to none.
+            name (str): The name for this firework. Defaults to wf_name + heterostructure optimization (used as the
+                fw_name).
+            transformation (dict): transformation parameters used to create the heterostructure.
+            user_incar_settings (dict): Input settings to update the settings for the vasp input set.
+            vasp_input_set (VaspInputSet): VASP input set for the transformed 2d on sub-slab. Default CMDLInterfaceSet.
+            prev_calc_dir: path to previous calculation if using structure from another calculation.
         """
         fw_name = "{}: {}".format("Heterostructure Optimization", name)
 
