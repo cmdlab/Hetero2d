@@ -35,7 +35,7 @@ __date__ = "June 09, 2022"
 logger = get_logger(__name__)
 
 # Helper Functions
-def _update_spec(additional_spec):
+def update_spec(additional_spec):
     """
     Controller function for Hetero2d workflow to update spec, override 
     default settings, and manage data passing between workflows, fireworks,

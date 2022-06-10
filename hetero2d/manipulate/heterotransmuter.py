@@ -396,8 +396,8 @@ def generate_all_configs(mat2d, substrate, nlayers_2d=3, nlayers_substrate=2, se
             shift_net = shift_normal - shift_parallel
 
             # add 2d mat to substrate with shifted coords
-            mat2d2=deepcopy(mat2d)
-            for idx, site in enumerate(mat2d2):
+            mat2d_ref = deepcopy(mat2d)
+            for idx, site in enumerate(mat2d_ref):
                 new_coords = site.coords  # xyz coords of 2d site
                 # place 2d above substrate (z-dir change only)
                 new_coords[2] = site.coords[2] - mat_2d_bottom
