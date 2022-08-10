@@ -1,5 +1,5 @@
 # Hetero2d
-The Hetero2d package leverages well known computational tools: pymatgen, MPInterfaces, atomate, fireworks, and custodian to perform high-throughput *ab-initio* calculations. Hetero2d is tailored to addressing scientific questions regarding the stability of 2D-substrate hetero-structured materials using an all-in-one workflow approach to model the hetero-structures formed by arbitrary 2D materials and substrates. The workflow creates, computes, analyzes and stores all relevant simulation parameters and results in a queryable MongoDB database that can be accessed through our API. Check out our [documentation](https://cmdlab.github.io/Hetero2d/)!
+The Hetero2d package leverages well known computational tools: pymatgen, MPInterfaces, atomate, fireworks, and custodian to perform high-throughput *ab-initio* calculations. Hetero2d is tailored to addressing scientific questions regarding the stability of 2D-substrate hetero-structured materials using an all-in-one workflow approach to model the hetero-structures formed by arbitrary 2D materials and substrates. The workflow creates, computes, analyzes and stores all relevant simulation parameters and results in a queryable MongoDB database that can be accessed through our API. Check out our [documentation](https://cmdlab.github.io/Hetero2d/) or the [paper](https://doi.org/10.1016/j.commatsci.2022.111238)!
 
 ## Package Description
 The 2D-substrate hetero-structure workflow takes a given 2D material, 3D phase (bulk) of the 2D material, and a substrate, relaxes the structures using vdW-corrected DFT and creates hetero-structures subject to user constraints. The workflow analyzes and stores energetic stability information of various 2D hetero-structured materials to predict the feasibility of a substrate stabilizing a meta-stable 2D material
@@ -43,3 +43,8 @@ To get started using Hetero2d, various tutorials and examples have been created 
 1. If you have a new install you likely do not have the gcc compiler that pymatgen requires. In that case run 
 - `sudo apt install build-essential`
 - `sudo apt-get install manpages-dev`
+
+## How to cite Hetero2d
+If you use Hetero2d in your research, please consider citing the paper!
+
+> Tara M. Boland, Arunima K. Singh. *Computational synthesis of 2D materials: A high-throughput approach to materials design.* Computational Materials Science, 2022, 207, 111238. [doi:10.1016/j.commatsci.2022.111238](https://doi.org/10.1016/j.commatsci.2022.111238)
