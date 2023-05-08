@@ -9,12 +9,13 @@ Hetero2d provides automated routines for the generation of low-lattice mismatche
 ## Installation Instructions for Hetero2d
 IMPORTANT NOTE: Atomate and FireWorks do not run on Windows OS. You need a unix-based OS (Mac or Linux) in order for these packages to run. As such, all setup instructions are given for Unix systems. 
 
-1. Download the repo from the green code icon or via github's commandline tool gh. 
+1. Download the repo using **one** of the following methods: 
 - ``gh repo clone cmdlab/Hetero2d`` (gh must be installed)
 - ``git clone https://github.com/cmdlab/Hetero2d.git``
-2. Install Hetero2d in a clean enviromnent using python=3.9. I suggest using Anaconda3 to manange environments. 
+- ``git clone git@github.com:cmdlab/Hetero2d.git``
+2. Install Hetero2d in a clean python enviromnent using python>=3.9. I suggest using Anaconda3 to manange environments. 
 - ``conda create --name hetero2d python=3.9``
-3. Activate the Hetero2d environment and run the line below in the Hetero2d directory to install:
+3. Activate the Hetero2d virtual environment and install the package from the Hetero2d directory:
 - ``pip install -r requirements.txt``
 4. After installation, Hetero2d needs to be added to your python path. This can be done by running the first line below **OR** by adding the 2nd line listed below to your *.bashrc* file. Only necessary if python cannot find the package or the setup.py failed for some reason.
 - ``python setup.py develop`` or ``python setup.py install`` 
